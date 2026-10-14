@@ -160,3 +160,30 @@ describe('Both Lighting fixtures (from the manuals)', () => {
     expect(bar.heads!.filter((h) => /warm/i.test(h.name)).length).toBe(12)
   })
 })
+
+describe('Play demo on library fixtures', () => {
+  it('lights every mode of every Both Lighting fixture', async () => {
+    const { registerFixtureTypes } = await import('../src/renderer/src/model/fixtureTypes')
+    const { runDemo } = await import('../src/renderer/src/state/demo')
+    const { dmxBus } = await import('../src/renderer/src/state/dmxBus')
+    const dark: string[] = []
+    for (const entry of libraryIndex(library).filter((e) => e.key.startsWith('both-lighting/'))) {
+      library.fixtures[entry.key].modes.forEach((_, mode) => {
+        const type = fixtureTypeFromOfl(entry.key, entry.manufacturer, library.fixtures[entry.key], mode)
+        if (!type.heads?.some((h) => h.role !== 'master' && (h.ch.dimmer || h.ch.red || h.ch.white || h.ch.colorWheel || h.ch.shutter))) return
+        registerFixtureTypes([type])
+        dmxBus.clearFaders()
+        dmxBus.setPreview(true)
+        const fixture = { id: 'f', name: 'f', typeId: type.id, universe: 1, address: 1 } as never
+        let brightest = 0
+        for (let t = 0; t < 4; t += 0.05) {
+          runDemo({ fixtures: [fixture] } as never, t)
+          brightest = Math.max(brightest, ...decodeHeads(type, dmxBus.levels(1), 1, t).map((h) => h.intensity))
+        }
+        if (brightest < 0.3) dark.push(`${entry.key} mode ${mode}`)
+      })
+    }
+    dmxBus.setPreview(false)
+    expect(dark).toEqual([])
+  })
+})

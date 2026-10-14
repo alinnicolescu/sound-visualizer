@@ -3,7 +3,7 @@
  */
 import { dmxBus } from './dmxBus'
 import { getFixtureType, type ChannelFunction } from '../model/fixtureTypes'
-import { headsOf, type ChannelRef } from '../model/heads'
+import { headsOf, type ChannelRef, type ShutterRange } from '../model/heads'
 import type { Project, Fixture } from '../model/project'
 
 function channelOf(fixture: Fixture, fn: ChannelFunction): number | null {
@@ -52,16 +52,24 @@ export function runDemo(project: Project, time: number): void {
     heads.forEach((h, k) => {
       const [r, g, b] = hsvToRgb((time * 0.08 + i * 0.12 + k * 0.05) % 1, 1, 1)
       put(h.ch.dimmer, 1)
-      const open = h.shutter?.find((x) => x.kind === 'open')
-      put(h.ch.shutter, open ? (open.lo + open.hi) / 2 / 255 : 0)
-      put(h.ch.red, r)
-      put(h.ch.green, g)
-      put(h.ch.blue, b)
-      put(h.ch.white, 0)
-      put(h.ch.amber, 0)
-      put(h.ch.uv, 0)
-      if (h.colorWheel?.length) {
-        const slot = h.colorWheel[Math.floor(time / 3 + i) % h.colorWheel.length]
+      put(h.ch.shutter, openShutter(h.shutter) / 255)
+      if (h.ch.red || h.ch.green || h.ch.blue) {
+        put(h.ch.red, r)
+        put(h.ch.green, g)
+        put(h.ch.blue, b)
+        put(h.ch.white, 0)
+        put(h.ch.amber, 0)
+        put(h.ch.uv, 0)
+      } else {
+        // White, warm-white or UV only: there's no colour to chase, so just light it.
+        put(h.ch.white, 1)
+        put(h.ch.amber, 1)
+        put(h.ch.uv, 1)
+      }
+      // Step through the real colours (skipping "blackout" and "no macro" slots).
+      const slots = h.colorWheel?.filter((x) => Math.max(...x.rgb) > 0.001) ?? []
+      if (slots.length) {
+        const slot = slots[Math.floor(time / 3 + i) % slots.length]
         put(h.ch.colorWheel, (slot.lo + slot.hi) / 2 / 255)
       }
       // Real sweeps: the head swings out (tilt) and around (pan), so beams travel across the room.
@@ -72,6 +80,24 @@ export function runDemo(project: Project, time: number): void {
       put(h.ch.gobo, Math.floor(time / 6) % 2 ? 0.3 : 0)
     })
   })
+}
+
+/**
+ * A shutter value that really means "open" for this fixture: its open range if the
+ * fixture file lists one, else a value between the listed ranges (those read as open),
+ * else 0 (the usual "no strobe"). Fixtures whose shutter is only closed or strobe
+ * get the slowest strobe, the closest they come to being on.
+ */
+function openShutter(ranges: ShutterRange[] | undefined): number {
+  if (!ranges?.length) return 0
+  const open = ranges.find((x) => x.kind === 'open')
+  if (open) return (open.lo + open.hi) / 2
+  const covered = (v: number) => ranges.some((x) => v >= x.lo && v <= x.hi)
+  const gap = [...Array(256).keys()].filter((v) => !covered(v))
+  if (gap.length) return gap[Math.floor(gap.length / 2)]
+  if (ranges.every((x) => x.kind === 'strobe')) return 0
+  const strobe = ranges.filter((x) => x.kind === 'strobe').sort((a, b) => a.lo - b.lo)[0]
+  return strobe ? strobe.lo : 255
 }
 
 function hsvToRgb(h: number, s: number, v: number): [number, number, number] {

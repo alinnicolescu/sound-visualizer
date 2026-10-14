@@ -24,3 +24,25 @@ describe('mixing the show with the faders', () => {
     expect(dmxBus.levels(0)[1]).toBe(20)
   })
 })
+
+describe('Play demo', () => {
+  it('shows on every fixture even while SoundSwitch sends an idle (all-zero) show', async () => {
+    const { defaultProject } = await import('../src/renderer/src/model/project')
+    const { getFixtureType } = await import('../src/renderer/src/model/fixtureTypes')
+    const { decodeHeads } = await import('../src/renderer/src/model/heads')
+    const { runDemo } = await import('../src/renderer/src/state/demo')
+    const project = defaultProject()
+    dmxBus.clearFaders()
+    for (const u of new Set(project.fixtures.map((f) => f.universe))) dmxBus.receiveArtNet(u, new Uint8Array(512))
+    dmxBus.setPreview(true)
+    runDemo(project, 1.5)
+    for (const f of project.fixtures) {
+      const heads = decodeHeads(getFixtureType(f.typeId), dmxBus.levels(f.universe), f.address, 1.5)
+      expect(Math.max(...heads.map((h) => h.intensity)), f.name).toBeGreaterThan(0.5)
+    }
+    // Stopping hands the rig back to the show.
+    dmxBus.setPreview(false)
+    dmxBus.clearFaders()
+    expect(Math.max(...dmxBus.levels(project.fixtures[0].universe))).toBe(0)
+  })
+})

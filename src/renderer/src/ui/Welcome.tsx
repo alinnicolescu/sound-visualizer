@@ -34,7 +34,7 @@ export function Welcome() {
   }, [open, close])
   if (!open) return null
 
-  const found = status?.state === 'linked' ? `Found your SoundSwitch project “${status.name}” with ${status.fixtures.length} fixtures.` : null
+  const found = status?.state === 'linked' ? `SoundSwitch is running: found a project with ${status.fixtures.length} fixtures. You choose which project to use when you make a show.` : null
   const PANELS: Panel[] = [
     {
       title: 'Welcome to Sound Visualizer',
@@ -84,7 +84,7 @@ export function Welcome() {
           <p>
             <b>✦ Build show</b> (⌘K): type, or press Fn twice to dictate, “two moving heads on 6 ft totems either side of the stage, one with pan inverted”, and it's built and patched for you.
           </p>
-          <p className="soft">Common requests work right away. Connect Claude in that box (your own Anthropic API key) to build anything you can describe.</p>
+          <p className="soft">Common requests work right away. Connect Claude in that box to build anything you can describe: it walks you through getting a key.</p>
         </>
       )
     },

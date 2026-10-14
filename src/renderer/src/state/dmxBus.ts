@@ -8,7 +8,9 @@
  * While a show is arriving over Art-Net, the show wins: only a fader you move
  * yourself overrides it, on that channel, until you press Release (like a
  * console's "latest takes precedence" for positions). Levels the app sets on
- * its own (pointing heads down at startup, the demo) never cover the show.
+ * its own (pointing heads down at startup) never cover the show. Play demo is
+ * the exception: while it runs it covers everything, so pressing it always
+ * shows something, even with SoundSwitch connected and sitting idle.
  * Mixing by "highest wins" was wrong for pan and tilt: a heads-down 128 held
  * every lower pan or tilt value from SoundSwitch at the centre, so movers
  * barely moved.
@@ -24,6 +26,8 @@ let artNetPackets = 0
 const senders = new Map<string, Set<number>>()
 const lastSeen = new Map<number, number>()
 let offset = 0
+/** Play demo is running: the test levels cover the show completely, so the demo is always visible. */
+let preview = false
 
 function buffer(map: Map<number, Uint8Array>, universe: number): Uint8Array {
   let data = map.get(universe)
@@ -62,6 +66,15 @@ export const dmxBus = {
     return n
   },
 
+  /** While the demo plays, its levels win over any Art-Net arriving (SoundSwitch sends even when idle). */
+  setPreview(on: boolean): void {
+    preview = on
+  },
+
+  previewing(): boolean {
+    return preview
+  },
+
   getFader(universe: number, channel: number): number {
     return faders.get(universe)?.[channel - 1] ?? 0
   },
@@ -95,7 +108,7 @@ export const dmxBus = {
     const out = buffer(merged, projectUniverse)
     const a = artnet.get(universe)
     const f = faders.get(projectUniverse)
-    const live = a && performance.now() - (lastSeen.get(universe) ?? 0) < 2000
+    const live = !preview && a && performance.now() - (lastSeen.get(universe) ?? 0) < 2000
     if (live) {
       // The show drives everything, except channels held by hand.
       const hand = manual.get(projectUniverse)

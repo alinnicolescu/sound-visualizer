@@ -1,5 +1,6 @@
 /** View settings that aren't part of the show file. */
 import { create } from 'zustand'
+import { dmxBus } from './dmxBus'
 
 interface ViewSettings {
   haze: number
@@ -34,7 +35,13 @@ export const useViewSettings = create<ViewSettings>((set) => ({
   setBuilder: (builder) => set({ builder }),
   setTool: (tool) => set({ tool }),
   setHaze: (haze) => set({ haze }),
-  setDemo: (demo) => set({ demo }),
+  setDemo: (demo) =>
+    set((s) => {
+      // Starting the demo begins from clean test levels (a stray fader can't hold a head still).
+      if (demo && !s.demo) dmxBus.clearFaders()
+      dmxBus.setPreview(demo)
+      return { demo }
+    }),
   setFullView: (fullView) => set({ fullView }),
   setLeftTab: (leftTab) => set({ leftTab })
 }))

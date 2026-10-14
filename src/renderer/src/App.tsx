@@ -42,12 +42,10 @@ export function App() {
   useEffect(() => {
     if (!window.api) return
     const offDmx = window.api.onDmx(({ universe, data, from }) => {
-      // When a show starts arriving, it takes over: stop the demo and drop the test faders,
-      // so the show starts from a clean slate.
-      if (!dmxBus.artNetActive()) {
-        useViewSettings.getState().setDemo(false)
-        dmxBus.clearFaders()
-      }
+      // When a show starts arriving, drop the test faders so it starts from a clean slate.
+      // A demo you started keeps playing: SoundSwitch sends Art-Net even when idle,
+      // and stopping the demo on every packet made Play demo look broken.
+      if (!dmxBus.artNetActive() && !useViewSettings.getState().demo) dmxBus.clearFaders()
       dmxBus.receiveArtNet(universe, data, from)
     })
     const offStatus = window.api.onArtNetStatus(setArtNet)

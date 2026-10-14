@@ -32,6 +32,7 @@ export function ShowBuilder() {
   const [claude, setClaude] = useState<{ connected: boolean; encryption: boolean } | null>(null)
   const [keyDraft, setKeyDraft] = useState('')
   const [showKey, setShowKey] = useState(false)
+  const [checking, setChecking] = useState(false)
   const input = useRef<HTMLTextAreaElement>(null)
 
   useEffect(() => {
@@ -95,9 +96,10 @@ export function ShowBuilder() {
     }
   }
 
-  const saveKey = async () => {
-    if (!window.api) return
-    const r = await window.api.setClaudeKey(keyDraft)
+  const saveKey = async (key = keyDraft) => {
+    if (!window.api || checking) return
+    setChecking(true)
+    const r = await window.api.setClaudeKey(key).finally(() => setChecking(false))
     if (r.error) add({ kind: 'error', text: r.error })
     else {
       setKeyDraft('')
@@ -167,15 +169,57 @@ export function ShowBuilder() {
               </button>
             </>
           ) : showKey ? (
-            <>
-              <input type="password" placeholder="sk-ant-…" value={keyDraft} onChange={(e) => setKeyDraft(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && void saveKey()} />
-              <button className="mini" onClick={() => void saveKey()}>
-                Save key
+            <div className="claude-connect">
+              <p>
+                Claude connects with an <b>API key</b>: a long password that lets this app use Claude on your own Anthropic account. It's separate from a Claude.ai
+                subscription (Anthropic doesn't let other apps sign in with that), and you pay only for what you use.
+              </p>
+              <ol>
+                <li>
+                  <a className="mini button-link" href="https://console.anthropic.com/settings/keys" target="_blank" rel="noreferrer">
+                    Open the Anthropic Console ↗
+                  </a>{' '}
+                  and sign in (Google works). New accounts add a little credit under <b>Billing</b> first.
+                </li>
+                <li>
+                  Click <b>Create Key</b>, name it “Sound Visualizer”, and press <b>Copy</b>.
+                </li>
+                <li>
+                  Paste it here:
+                  <span className="claude-key-row">
+                    <input
+                      type="password"
+                      autoFocus
+                      placeholder="sk-ant-…"
+                      value={keyDraft}
+                      onChange={(e) => setKeyDraft(e.target.value)}
+                      onPaste={(e) => {
+                        const pasted = e.clipboardData.getData('text')
+                        if (/sk-ant-/.test(pasted)) {
+                          e.preventDefault()
+                          setKeyDraft(pasted)
+                          void saveKey(pasted)
+                        }
+                      }}
+                      onKeyDown={(e) => e.key === 'Enter' && void saveKey()}
+                    />
+                    <button className="mini primary" disabled={checking || !keyDraft.trim()} onClick={() => void saveKey()}>
+                      {checking ? 'Checking…' : 'Connect'}
+                    </button>
+                  </span>
+                </li>
+              </ol>
+              <p className="soft">
+                The key is checked with Anthropic, then stored encrypted in this Mac's keychain. It never leaves this Mac except to talk to Claude. Disconnect any time;
+                you can delete the key in the Console too.
+              </p>
+              <button className="mini quiet" onClick={() => setShowKey(false)}>
+                Not now
               </button>
-            </>
+            </div>
           ) : (
             <>
-              <span className="hint">Connect Claude to build anything you describe. Needs an Anthropic API key (console.anthropic.com).</span>
+              <span className="hint">Common requests work without Claude. Connect Claude to build anything you can describe.</span>
               <button className="mini" onClick={() => setShowKey(true)}>
                 Connect Claude…
               </button>

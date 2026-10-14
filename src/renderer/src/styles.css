@@ -366,6 +366,13 @@ button.mini.on { border-color: var(--accent); background: #1c2c48; }
 .builder-claude { display: flex; align-items: center; gap: 8px; border-top: 1px solid var(--line); padding-top: 8px; }
 .builder-claude .hint { flex: 1; font-size: 11px; margin: 0; }
 .builder-claude input { flex: 1; }
+.claude-connect { flex: 1; font-size: 12px; line-height: 1.45; }
+.claude-connect p { margin: 0 0 6px; }
+.claude-connect ol { margin: 0 0 6px; padding-left: 18px; display: grid; gap: 6px; }
+.claude-key-row { display: flex; gap: 6px; margin-top: 4px; }
+.claude-key-row input { flex: 1; }
+a.button-link { display: inline-block; text-decoration: none; color: inherit; border: 1px solid var(--line); border-radius: 6px; padding: 2px 8px; }
+a.button-link:hover { border-color: var(--accent, #6aa0ff); }
 
 /* --- Set piece editor in the 3D view --- */
 .structure-editor {

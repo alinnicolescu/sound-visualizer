@@ -53,8 +53,25 @@ export function Faders() {
   return (
     <div className="faders">
       <div className="fader-actions">
-        <button className={demo ? 'active' : ''} onClick={() => setDemo(!demo)}>
-          {demo ? 'Stop demo' : 'Play demo'}
+        <button
+          className={demo ? 'active' : ''}
+          disabled={!demo && fixtures.length === 0}
+          title={
+            fixtures.length === 0
+              ? 'Add fixtures first: the demo plays the fixtures in this show'
+              : demo
+                ? 'Stop the demo and hand the rig back to SoundSwitch (or the faders)'
+                : 'Play a looping test show on every fixture in this show: colours, sweeps and gobos'
+          }
+          onClick={() => {
+            if (!demo) return setDemo(true)
+            setDemo(false)
+            dmxBus.clearFaders()
+            homeFixtures(useStore.getState().project)
+            redraw((n) => n + 1)
+          }}
+        >
+          {demo ? '■ Stop demo' : '▶ Play demo'}
         </button>
         <button onClick={() => setAll('dimmer', 255)}>All on</button>
         <button
@@ -79,7 +96,11 @@ export function Faders() {
           </button>
         )}
         <p className="hint">
-          {first
+          {demo
+            ? dmxBus.artNetActive()
+              ? 'Demo playing on every fixture, over the SoundSwitch show. Stop demo to see the show again.'
+              : 'Demo playing on every fixture in this show.'
+            : first
             ? `Faders move ${targets.length === 1 ? first.name : `${targets.length} selected fixtures`}. While a show is playing, a fader you move takes over that channel until you press Release.`
             : 'Select a fixture to get its faders.'}
         </p>

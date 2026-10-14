@@ -149,7 +149,11 @@ function shutterFactor(raw: number | undefined, ranges: ShutterRange[] | undefin
   let kind: ShutterRange['kind'] = 'open'
   let position = 0
   const range = ranges?.find((r) => value >= r.lo && value <= r.hi)
-  if (range) {
+  if (range && range.kind === 'strobe' && value < 10 && ranges!.every((r) => r.kind === 'strobe')) {
+    // Only "strobe, slow to fast" is known (the fixture file doesn't say where it's off):
+    // like nearly every fixture, the bottom of the range is no strobe.
+    kind = 'open'
+  } else if (range) {
     kind = range.kind
     position = (value - range.lo) / Math.max(1, range.hi - range.lo)
   } else if (ranges && ranges.length) {
@@ -222,7 +226,9 @@ export function decodeHeads(type: FixtureType, levels: Uint8Array, address: numb
         Math.min(1, (r('blue') ?? 0) + w + u * 0.9)
       ]
     }
-    const wheel = wheelColor(r('colorWheel'), head.colorWheel)
+    let wheel = wheelColor(r('colorWheel'), head.colorWheel)
+    // On an RGB fixture the macro's "black" slot means "no macro": the mixed colour shows.
+    if (wheel && hasColor && Math.max(...wheel) <= 0.001) wheel = null
     // A real colour wheel filters the white lamp. On an RGB fixture the same kind of
     // channel is a colour macro, which replaces the mixed colour while it's active.
     if (wheel) color = hasColor ? [...wheel] : [color[0] * wheel[0], color[1] * wheel[1], color[2] * wheel[2]]

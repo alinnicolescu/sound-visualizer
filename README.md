@@ -13,7 +13,7 @@ It's built with Electron (desktop app), React (panels), three.js (3D) and TypeSc
 You need [Node.js](https://nodejs.org) 22 or newer.
 
 ```bash
-git clone https://github.com/itsadrenaline/sound-visualizer.git
+git clone <this repository's URL>   # the green Code button on GitHub shows it
 cd sound-visualizer
 npm install        # first time only, downloads everything into node_modules/
 npm run setup      # first time only, downloads the Electron app itself

@@ -25,10 +25,26 @@ export function claudeStatus(): { connected: boolean; encryption: boolean } {
   return { connected: !!readKey(), encryption: safeStorage.isEncryptionAvailable() }
 }
 
-export function setClaudeKey(key: string): { connected: boolean; error?: string } {
-  const trimmed = key.trim()
-  if (!/^sk-ant-[\w-]{20,}$/.test(trimmed)) return { connected: false, error: "That doesn't look like an Anthropic API key (it starts with sk-ant-)." }
+/**
+ * Saves the key after checking it with Anthropic (listing models is free), so a
+ * typo or a revoked key is caught here, not on the first build.
+ */
+export async function setClaudeKey(key: string): Promise<{ connected: boolean; error?: string }> {
+  // Pasted keys often come with spaces, line breaks or quotes around them.
+  const trimmed = key.replace(/[\s"'“”]/g, '')
+  if (!/^sk-ant-[\w-]{20,}$/.test(trimmed)) return { connected: false, error: "That isn't an Anthropic API key. Keys start with sk-ant- and are about 100 characters: copy it with the Copy button in the Console." }
   if (!safeStorage.isEncryptionAvailable()) return { connected: false, error: "This computer's keychain isn't available, so the key can't be stored safely." }
+  try {
+    const response = await net.fetch('https://api.anthropic.com/v1/models?limit=1', {
+      headers: { 'x-api-key': trimmed, 'anthropic-version': '2023-06-01' }
+    })
+    if (response.status === 401 || response.status === 403) {
+      return { connected: false, error: "Anthropic didn't accept that key. It may have been deleted, or only part of it was copied: make a new one and paste it again." }
+    }
+  } catch (error) {
+    // Offline: keep the key anyway, the first build will tell if it's wrong.
+    log('warn', 'Could not check the Claude key (offline?)', error)
+  }
   writeFileSync(keyFile(), safeStorage.encryptString(trimmed))
   log('info', 'Claude key saved')
   return { connected: true }
