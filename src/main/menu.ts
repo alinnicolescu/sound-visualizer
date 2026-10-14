@@ -1,0 +1,110 @@
+/**
+ * The app menu. Each item sends a command name to the page, which runs the same
+ * command as the matching button or shortcut (see renderer/src/state/menuCommands.ts).
+ *
+ * Shortcuts that would get in the way of typing (single keys, Cmd+Z, Cmd+A) are
+ * only shown here; the page handles them itself and ignores them in text fields.
+ */
+import { app, Menu, shell, type BrowserWindow, type MenuItemConstructorOptions } from 'electron'
+import { logFolder } from './log'
+
+export type MenuCommand =
+  | 'new' | 'open' | 'save' | 'saveAs' | 'importFixtures' | 'saveImage'
+  | 'undo' | 'redo' | 'selectAll' | 'duplicate' | 'delete'
+  | 'viewPerspective' | 'viewTop' | 'viewFront' | 'viewLeft' | 'viewRight' | 'viewUp' | 'focusSelection' | 'focusAll' | 'toggleFullView'
+  | 'showLibrary' | 'showFixtures' | 'toolSelect' | 'toolMove' | 'toolOrbit'
+  | 'welcome' | 'builder' | 'importShow' | 'openMvr' | 'exportMvr' | 'exportCsv' | `template:${string}`
+
+export function buildMenu(getWindow: () => BrowserWindow | null): void {
+  const send = (command: MenuCommand) => () => getWindow()?.webContents.send('menu', command)
+  const isMac = process.platform === 'darwin'
+  const template: MenuItemConstructorOptions[] = [
+    ...(isMac ? [{ role: 'appMenu' as const }] : []),
+    {
+      label: 'File',
+      submenu: [
+        { label: 'New Show…', accelerator: 'CmdOrCtrl+N', click: send('new') },
+        {
+          label: 'New from Template',
+          submenu: [
+            { label: 'Mobile DJ', click: send('template:mobile') },
+            { label: 'Club Stage', click: send('template:club') },
+            { label: 'Wedding / Event', click: send('template:wedding') },
+            { label: 'Empty Room', click: send('template:empty') }
+          ]
+        },
+        { label: 'Describe a Show…', accelerator: 'CmdOrCtrl+K', click: send('builder') },
+        { label: 'Open…', accelerator: 'CmdOrCtrl+O', click: send('open') },
+        ...(isMac ? [{ role: 'recentDocuments' as const, submenu: [{ role: 'clearRecentDocuments' as const }] }] : []),
+        { type: 'separator' },
+        { label: 'Save', accelerator: 'CmdOrCtrl+S', click: send('save') },
+        { label: 'Save As…', accelerator: 'Shift+CmdOrCtrl+S', click: send('saveAs') },
+        { type: 'separator' },
+        { label: 'Import Show into This One…', click: send('importShow') },
+        { label: 'Open MVR…', click: send('openMvr') },
+        {
+          label: 'Export',
+          submenu: [
+            { label: 'MVR for Capture, grandMA3, Vectorworks…', click: send('exportMvr') },
+            { label: 'Patch List (CSV)…', click: send('exportCsv') }
+          ]
+        },
+        { type: 'separator' },
+        { label: 'Import Fixture File…', click: send('importFixtures') },
+        { label: 'Save View as Image…', accelerator: 'Shift+CmdOrCtrl+E', click: send('saveImage') },
+        ...(isMac ? [] : [{ type: 'separator' as const }, { role: 'quit' as const }])
+      ]
+    },
+    {
+      label: 'Edit',
+      submenu: [
+        // Undo/redo go to the project; text fields still get their own through the shortcuts.
+        { label: 'Undo', accelerator: 'CmdOrCtrl+Z', registerAccelerator: false, click: send('undo') },
+        { label: 'Redo', accelerator: 'Shift+CmdOrCtrl+Z', registerAccelerator: false, click: send('redo') },
+        { type: 'separator' },
+        { role: 'cut' },
+        { role: 'copy' },
+        { role: 'paste' },
+        { type: 'separator' },
+        { label: 'Select All Fixtures', accelerator: 'CmdOrCtrl+A', registerAccelerator: false, click: send('selectAll') },
+        { label: 'Duplicate', accelerator: 'CmdOrCtrl+D', registerAccelerator: false, click: send('duplicate') }
+      ]
+    },
+    {
+      label: 'View',
+      submenu: [
+        { label: 'Select Tool', accelerator: 'V', registerAccelerator: false, click: send('toolSelect') },
+        { label: 'Move Tool', accelerator: 'W', registerAccelerator: false, click: send('toolMove') },
+        { label: 'Orbit Tool (or hold Space)', accelerator: 'O', registerAccelerator: false, click: send('toolOrbit') },
+        { type: 'separator' },
+        { label: 'Perspective', accelerator: '1', registerAccelerator: false, click: send('viewPerspective') },
+        { label: 'Top', accelerator: '2', registerAccelerator: false, click: send('viewTop') },
+        { label: 'Front', accelerator: '3', registerAccelerator: false, click: send('viewFront') },
+        { label: 'Left', accelerator: '4', registerAccelerator: false, click: send('viewLeft') },
+        { label: 'Right', accelerator: '5', registerAccelerator: false, click: send('viewRight') },
+        { label: 'Up (ceiling)', accelerator: '6', registerAccelerator: false, click: send('viewUp') },
+        { type: 'separator' },
+        { label: 'Focus Selection', accelerator: 'F', registerAccelerator: false, click: send('focusSelection') },
+        { label: 'Show Everything', accelerator: 'Shift+F', registerAccelerator: false, click: send('focusAll') },
+        { label: 'Full View (hide panels)', accelerator: 'CmdOrCtrl+Shift+F', click: send('toggleFullView') },
+        { type: 'separator' },
+        { label: 'Fixture Library', accelerator: 'CmdOrCtrl+L', click: send('showLibrary') },
+        { label: 'Fixtures', accelerator: 'CmdOrCtrl+1', click: send('showFixtures') },
+        { type: 'separator' },
+        { role: 'togglefullscreen' },
+        ...(app.isPackaged ? [] : [{ role: 'reload' as const }, { role: 'toggleDevTools' as const }])
+      ]
+    },
+    { role: 'windowMenu' },
+    {
+      role: 'help',
+      submenu: [
+        { label: 'Welcome Tour', click: send('welcome') },
+        { type: 'separator' },
+        { label: 'Open Fixture Library Website', click: () => shell.openExternal('https://open-fixture-library.org') },
+        { label: 'Open Log Folder', click: () => shell.openPath(logFolder()) }
+      ]
+    }
+  ]
+  Menu.setApplicationMenu(Menu.buildFromTemplate(template))
+}

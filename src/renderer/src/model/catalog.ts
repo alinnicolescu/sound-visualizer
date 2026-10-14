@@ -1,0 +1,123 @@
+/**
+ * What each real fixture looks like and how it moves, from the manufacturers'
+ * spec sheets. The 3D models in three/looks.ts are built from these numbers.
+ * Sizes are in metres; "height" is with the fixture standing on its base.
+ *
+ * Sources (checked October 2026):
+ *  - Chauvet DJ product pages and data sheets: Intimidator Hybrid 140SR, Spot 360, Spot 260,
+ *    GigBAR Move / Move ILS, Wash FX 2, Wash FX
+ *  - Both Lighting product pages: BO-TUBE192, MH-150 (JOE1), Aura 19x15W, BPM-Spots 100,
+ *    Spider Wash (WASH24), IR4 mini uplight
+ *  - Rockville: Pixel Hybrid Bar
+ */
+
+export type LookKind =
+  | 'mover' // base + yoke + round head
+  | 'moverWash' // mover with a wide, flat LED face (and optional aura ring)
+  | 'gigbar' // bar carrying mini movers, derbies, pars, strobes and a laser
+  | 'tube' // vertical pixel tube, light all the way round
+  | 'bar' // horizontal LED bar with pixel sections
+  | 'strip' // thin LED strip
+  | 'uplight' // small box on a kickstand
+  | 'flood' // rectangular LED flood on a yoke bracket
+  | 'spider' // box with a face of separately coloured lenses
+  | 'par' // generic can
+
+export interface FixtureSpec {
+  look: LookKind
+  /** Overall size: width (left-right), height, depth, metres. */
+  size: [number, number, number]
+  /** Movement range in degrees (movers only). */
+  pan?: number
+  tilt?: number
+  /** Beam angle in degrees: [narrow, wide]. */
+  beam: [number, number]
+  /** Fastest head movement, degrees per second (from typical 540° pan times). */
+  speed?: number
+  /** Brightness relative to a 100 W LED spot. */
+  output: number
+  /** LEDs on the face, for wash looks: how many to draw. */
+  leds?: number
+  /** For movers: a ring of LEDs around the lens (BPM-Spots, Aura). */
+  halo?: boolean
+  /** How it's usually rigged. */
+  mount: 'hanging' | 'floor' | 'stand'
+  note: string
+}
+
+interface Entry {
+  match: RegExp
+  spec: FixtureSpec
+}
+
+const CATALOG: Entry[] = [
+  {
+    match: /hybrid\s*140/i,
+    spec: { look: 'mover', size: [0.322, 0.513, 0.22], pan: 540, tilt: 270, beam: [3, 28], speed: 220, output: 1.6, mount: 'hanging', note: 'Chauvet Intimidator Hybrid 140SR: 140 W discharge, beam/spot/wash, 12 colours + white, 2 gobo wheels, 2 prisms.' }
+  },
+  {
+    match: /intimidator\s*spot\s*360/i,
+    spec: { look: 'mover', size: [0.322, 0.423, 0.297], pan: 540, tilt: 270, beam: [12, 17], speed: 200, output: 1.0, mount: 'hanging', note: 'Chauvet Intimidator Spot 360: 100 W LED, 8 colours + white, 7 gobos, 2 prisms.' }
+  },
+  {
+    match: /intimidator\s*spot\s*260/i,
+    spec: { look: 'mover', size: [0.232, 0.351, 0.163], pan: 540, tilt: 270, beam: [12, 17], speed: 220, output: 0.75, mount: 'hanging', note: 'Chauvet Intimidator Spot 260: 75 W LED, 8 colours + white, 7 gobos, 3-facet prism.' }
+  },
+  {
+    match: /joe1|bo-mh150|150w beam/i,
+    spec: { look: 'mover', size: [0.3, 0.45, 0.25], pan: 540, tilt: 270, beam: [2, 6], speed: 260, output: 1.5, mount: 'hanging', note: 'Both Lighting MH-150: 150 W LED beam, 7 colours + white, 2 gobo wheels, 3-facet prism.' }
+  },
+  {
+    match: /bpm-spots|100w spot moving/i,
+    spec: { look: 'mover', size: [0.3, 0.43, 0.28], pan: 540, tilt: 270, beam: [14, 14], speed: 200, output: 1.0, halo: true, mount: 'floor', note: 'Both Lighting BPM-Spots 100: 100 W LED spot with an RGB halo ring (21 LEDs), battery and wireless DMX.' }
+  },
+  {
+    match: /19x15w|aura/i,
+    spec: { look: 'moverWash', size: [0.32, 0.38, 0.21], pan: 540, tilt: 240, beam: [8, 58], speed: 220, output: 1.2, leds: 19, halo: true, mount: 'hanging', note: 'Both Lighting Aura 19x15W: 19 RGBW LEDs with zoom, plus 30 RGB aura LEDs behind the lenses.' }
+  },
+  {
+    match: /gigbar/i,
+    spec: { look: 'gigbar', size: [1.1, 0.449, 0.144], pan: 540, tilt: 180, beam: [11, 19], speed: 250, output: 0.5, mount: 'stand', note: 'Chauvet GigBAR Move: a 1.1 m bar with 2 mini movers, 2 derbies, 2 pars, strobes and a laser.' }
+  },
+  {
+    match: /bo-tube|pixel tube/i,
+    spec: { look: 'tube', size: [0.053, 1.436, 0.053], beam: [180, 180], output: 0.35, mount: 'floor', note: 'Both Lighting BO-TUBE192: 1.44 m tube, 192 RGBWA LEDs shining all the way round, 16 pixel zones.' }
+  },
+  {
+    match: /rockville|pixel hybrid bar/i,
+    spec: { look: 'bar', size: [1.005, 0.125, 0.07], beam: [120, 120], output: 0.6, mount: 'floor', note: 'Rockville Pixel Hybrid Bar: 1 m bar, 96 RGB LEDs in 16 sections, 12 warm-white blinders, white strobe LEDs.' }
+  },
+  {
+    match: /strip|decoder/i,
+    spec: { look: 'strip', size: [1.0, 0.012, 0.012], beam: [120, 120], output: 0.25, mount: 'stand', note: 'LED tape: a single colour along its length.' }
+  },
+  {
+    match: /ir4|mini spotlight|uplight/i,
+    spec: { look: 'uplight', size: [0.153, 0.06, 0.145], beam: [25, 25], output: 0.45, leds: 4, mount: 'floor', note: 'Both Lighting IR4: 4 × 12 W RGBWA+UV LEDs, battery uplight, 25° beam.' }
+  },
+  {
+    match: /wash\s*fx\s*2/i,
+    spec: { look: 'flood', size: [0.31, 0.23, 0.14], beam: [40, 64], output: 0.5, leds: 18, mount: 'floor', note: 'Chauvet Wash FX 2: 18 quad-colour RGB+UV LEDs in 6 zones, 40° beam.' }
+  },
+  {
+    match: /wash\s*fx/i,
+    spec: { look: 'flood', size: [0.216, 0.254, 0.18], beam: [60, 90], output: 0.45, leds: 18, mount: 'floor', note: 'Chauvet Wash FX: 18 tri-colour RGB LEDs, pixel-mappable zones, 90° coverage.' }
+  },
+  {
+    match: /spider/i,
+    spec: { look: 'spider', size: [0.285, 0.22, 0.19], beam: [20, 20], output: 0.6, leds: 24, mount: 'floor', note: 'Both Lighting Spider Wash (WASH24): 24 × 12 W RGBWA+UV LEDs in separately coloured groups, 20° beams.' }
+  }
+]
+
+const GENERIC_MOVER: FixtureSpec = { look: 'mover', size: [0.3, 0.42, 0.24], pan: 540, tilt: 270, beam: [10, 30], speed: 220, output: 1, mount: 'hanging', note: 'Generic moving head.' }
+const GENERIC_PAR: FixtureSpec = { look: 'par', size: [0.2, 0.25, 0.2], beam: [20, 45], output: 0.6, mount: 'floor', note: 'Generic PAR.' }
+
+/** The researched spec for a fixture name, if there is one. */
+export function catalogSpec(name: string): FixtureSpec | undefined {
+  return CATALOG.find((e) => e.match.test(name))?.spec
+}
+
+/** The spec for a fixture by its name, or a sensible generic one. */
+export function specFor(definitionName: string, isMover: boolean): FixtureSpec {
+  return CATALOG.find((e) => e.match.test(definitionName))?.spec ?? (isMover ? GENERIC_MOVER : GENERIC_PAR)
+}

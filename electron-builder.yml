@@ -1,0 +1,81 @@
+# Packaging: `npm run dist:mac` makes one .dmg that runs on every Mac
+# (Apple Silicon M1-M5 and Intel) from macOS 12 Monterey on. See RELEASING.md.
+#
+# With a "Developer ID Application" certificate in your keychain and Apple
+# notarization credentials in the environment, the app is signed, notarized
+# by Apple and stapled: it opens on anyone's Mac with no warnings.
+# Without them, scripts/dist-mac.mjs makes an ad-hoc signed build for testing.
+appId: com.soundvisualizer.app
+productName: Sound Visualizer
+copyright: © 2026 the Sound Visualizer contributors. Fixture data from the Open Fixture Library (MIT) and Both Lighting user manuals.
+directories:
+  output: dist
+  buildResources: build
+files:
+  - out/**
+  - package.json
+# Everything in app.asar, which the fuses below check for tampering.
+asar: true
+extraResources:
+  # The fixture library is read from disk at runtime (see src/main/paths.ts).
+  - from: resources/library
+    to: library
+fileAssociations:
+  - ext: ssvis
+    name: Sound Visualizer project
+    role: Editor
+  - ext: mvr
+    name: MVR scene
+    role: Viewer
+# Electron fuses: switch off ways to run other code through the app.
+electronFuses:
+  runAsNode: false
+  enableNodeOptionsEnvironmentVariable: false
+  enableNodeCliInspectArguments: false
+  enableCookieEncryption: true
+  enableEmbeddedAsarIntegrityValidation: true
+  onlyLoadAppFromAsar: true
+  loadBrowserProcessSpecificV8Snapshot: false
+mac:
+  category: public.app-category.music
+  icon: build/icon.png
+  target:
+    - target: dmg
+      arch: [universal]
+    - target: zip
+      arch: [universal]
+  minimumSystemVersion: '12.0'
+  hardenedRuntime: true
+  gatekeeperAssess: false
+  entitlements: build/entitlements.mac.plist
+  entitlementsInherit: build/entitlements.mac.plist
+  # Notarize when Apple credentials are set (APPLE_API_KEY/APPLE_API_KEY_ID/APPLE_API_ISSUER,
+  # or APPLE_ID/APPLE_APP_SPECIFIC_PASSWORD/APPLE_TEAM_ID). dist-mac.mjs turns it off otherwise.
+  notarize: true
+  extendInfo:
+    # Art-Net arrives over the local network; macOS asks once for permission.
+    NSLocalNetworkUsageDescription: Sound Visualizer listens for Art-Net lighting data from SoundSwitch on your network.
+    NSHumanReadableCopyright: © 2026 the Sound Visualizer contributors. Works with SoundSwitch; not affiliated with or endorsed by inMusic.
+    LSApplicationCategoryType: public.app-category.music
+dmg:
+  title: Sound Visualizer ${version}
+  background: build/background.png
+  icon: build/icon.png
+  iconSize: 112
+  window:
+    width: 660
+    height: 400
+  contents:
+    - x: 180
+      y: 215
+    - x: 480
+      y: 215
+      type: link
+      path: /Applications
+  sign: false
+artifactName: Sound-Visualizer-${version}-mac.${ext}
+win:
+  target: nsis
+linux:
+  target: AppImage
+publish: null

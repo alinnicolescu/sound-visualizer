@@ -1,0 +1,152 @@
+/**
+ * The window layout: toolbar on top, fixtures or the library on the left, the
+ * 3D view in the middle, the inspector on the right, universe and faders below.
+ * "Full view" hides everything but the 3D view.
+ */
+import { useEffect, useState } from 'react'
+import { Viewport } from './three/Viewport'
+import { Toolbar } from './ui/Toolbar'
+import { FixtureList } from './ui/FixtureList'
+import { LibraryPanel } from './ui/LibraryPanel'
+import { SetPanel } from './ui/SetPanel'
+import { NewShow } from './ui/NewShow'
+import { Welcome } from './ui/Welcome'
+import { useWizards, welcomeSeen } from './state/wizards'
+import { Inspector } from './ui/Inspector'
+import { DmxMap } from './ui/DmxMap'
+import { Faders } from './ui/Faders'
+import { ErrorBoundary } from './ui/ErrorBoundary'
+import { useStore } from './state/store'
+import { dmxBus } from './state/dmxBus'
+import { homeFixtures } from './state/demo'
+import { useMix } from './state/mix'
+import type { ArtNetStatus } from '../../shared/ipc'
+import { useSoundSwitch } from './state/soundswitchLink'
+import { useViewSettings } from './state/viewSettings'
+import { commandForKey, runCommand } from './state/menuCommands'
+import { loadDocument } from './state/document'
+import { notify } from './state/notices'
+import type { Project } from './model/project'
+
+/** Commands the app menu already owns (with registered shortcuts) when running in Electron. */
+const MENU_OWNED = new Set(['new', 'builder', 'save', 'saveAs', 'open', 'showLibrary', 'toggleFullView'])
+
+export function App() {
+  const [bottomTab, setBottomTab] = useState<'faders' | 'universe'>('faders')
+  const [artNet, setArtNet] = useState<ArtNetStatus | null>(null)
+  const fullView = useViewSettings((s) => s.fullView)
+  const leftTab = useViewSettings((s) => s.leftTab)
+  const setLeftTab = useViewSettings((s) => s.setLeftTab)
+
+  // Art-Net, SoundSwitch, menus and files arrive from the Electron main process.
+  useEffect(() => {
+    if (!window.api) return
+    const offDmx = window.api.onDmx(({ universe, data, from }) => {
+      // When a show starts arriving, it takes over: stop the demo and drop the test faders,
+      // so the show starts from a clean slate.
+      if (!dmxBus.artNetActive()) {
+        useViewSettings.getState().setDemo(false)
+        dmxBus.clearFaders()
+      }
+      dmxBus.receiveArtNet(universe, data, from)
+    })
+    const offStatus = window.api.onArtNetStatus(setArtNet)
+    const offSoundSwitch = window.api.onSoundSwitch((status) => useSoundSwitch.getState().receive(status))
+    const offMenu = window.api.onMenu(runCommand)
+    const offOpened = window.api.onProjectOpened(({ path, project }) => loadDocument(path, project as Project))
+    const offNotice = window.api.onNotice((n) => notify(n.kind, n.text))
+    window.api.requestArtNetStatus()
+    window.api.refreshSoundSwitch()
+    // Errors in the page end up in the log file too.
+    const onError = (e: ErrorEvent) => window.api?.log('error', e.message, `${e.filename}:${e.lineno}`)
+    window.addEventListener('error', onError)
+    return () => {
+      offDmx()
+      offStatus()
+      offSoundSwitch()
+      offMenu()
+      offOpened()
+      offNotice()
+      window.removeEventListener('error', onError)
+    }
+  }, [])
+
+  // The first time the app opens: a short tour, then making a first show.
+  useEffect(() => {
+    if (!welcomeSeen()) useWizards.getState().openWelcome()
+  }, [])
+
+  // Point the moving heads down when fixtures appear, so nothing starts aimed at the ceiling.
+  const project = useStore((s) => s.project)
+  useEffect(() => homeFixtures(project), [project])
+
+  // Keyboard shortcuts run the same commands as the menu and buttons.
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      const t = e.target
+      if (t instanceof HTMLInputElement || t instanceof HTMLSelectElement || t instanceof HTMLTextAreaElement) return
+      const { selection, select } = useStore.getState()
+      const key = e.key.toLowerCase()
+      if (!e.metaKey && !e.ctrlKey && !e.altKey && selection.length && (key === 'm' || key === 's' || key === 'h')) {
+        useMix.getState().toggle(key === 'm' ? 'muted' : key === 's' ? 'solo' : 'hidden', selection)
+        return
+      }
+      if (key === 'escape') return select([])
+      const command = commandForKey(e)
+      if (!command || (window.api && MENU_OWNED.has(command))) return
+      e.preventDefault()
+      runCommand(command)
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [])
+
+  return (
+    <div className={`app ${fullView ? 'full' : ''}`}>
+      <NewShow />
+      <Welcome />
+      <Toolbar artNet={artNet} />
+      {!fullView && (
+        <aside className="panel left">
+          <div className="tabs">
+            <button className={leftTab === 'fixtures' ? 'tab active' : 'tab'} onClick={() => setLeftTab('fixtures')}>
+              Fixtures
+            </button>
+            <button className={leftTab === 'library' ? 'tab active' : 'tab'} onClick={() => setLeftTab('library')} title="Browse and add fixtures (Cmd+L)">
+              Library
+            </button>
+            <button className={leftTab === 'set' ? 'tab active' : 'tab'} onClick={() => setLeftTab('set')} title="Totems, stands, truss, staging, tables, drape">
+              Set
+            </button>
+          </div>
+          <ErrorBoundary name={leftTab}>{leftTab === 'library' ? <LibraryPanel /> : leftTab === 'set' ? <SetPanel /> : <FixtureList />}</ErrorBoundary>
+        </aside>
+      )}
+      <main className="center">
+        <ErrorBoundary name="3D view">
+          <Viewport />
+        </ErrorBoundary>
+      </main>
+      {!fullView && (
+        <aside className="panel right">
+          <ErrorBoundary name="inspector">
+            <Inspector />
+          </ErrorBoundary>
+        </aside>
+      )}
+      {!fullView && (
+        <section className="panel bottom">
+          <div className="tabs">
+            <button className={bottomTab === 'faders' ? 'tab active' : 'tab'} onClick={() => setBottomTab('faders')}>
+              Faders
+            </button>
+            <button className={bottomTab === 'universe' ? 'tab active' : 'tab'} onClick={() => setBottomTab('universe')} title="Where every fixture sits across the DMX channels, like SoundSwitch's DMX map">
+              DMX Map
+            </button>
+          </div>
+          <ErrorBoundary name="bottom panel">{bottomTab === 'faders' ? <Faders /> : <DmxMap />}</ErrorBoundary>
+        </section>
+      )}
+    </div>
+  )
+}

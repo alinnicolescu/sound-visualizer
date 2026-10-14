@@ -1,0 +1,15 @@
+node_modules/
+out/
+dist/
+*.log
+.DS_Store
+dist-electron/
+.env
+.env.*
+# personal or machine-specific files, never shared
+soundswitch-exclude.json
+_to_delete/
+*.tgz
+electron.vite.config.*.mjs
+tests/zz.test.ts
+*.ssproj

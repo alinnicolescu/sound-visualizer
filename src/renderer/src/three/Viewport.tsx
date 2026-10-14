@@ -1,0 +1,810 @@
+/**
+ * The 3D view. React only creates the canvas; three.js does the rest in its
+ * own animation loop, reading the project and live DMX directly. React
+ * re-rendering 60 times a second would be far too slow.
+ */
+import { useEffect, useRef } from 'react'
+import * as THREE from 'three'
+import { OrbitControls } from 'three/addons/controls/OrbitControls.js'
+import { TransformControls } from 'three/addons/controls/TransformControls.js'
+import { addLibraryFixtures, addStructure, mountFixtures, moveFixtures, moveSelection } from '../state/commands'
+import { registerView, type ViewPreset } from '../state/viewBus'
+import { useLibrary } from '../state/library'
+import { DRAG_TYPE, type DragPayload } from '../ui/LibraryPanel'
+import { STRUCTURE_DRAG, type StructureDrag } from '../ui/SetPanel'
+import { StructureEditor, StructureHud, StructureMenu, useStructureEditor } from '../ui/StructureActions'
+import { ShowBuilder } from '../ui/ShowBuilder'
+import { roomFit, type RoomFit } from '../model/physics'
+import { mountPoints, nearestOn, pointAt, toWorld, type MountPoint, type Structure } from '../model/structures'
+import { StructureRig, mountGuides } from './structures'
+import { ViewToolbar } from '../ui/ViewToolbar'
+import { Notices } from '../ui/Notices'
+import { useStore } from '../state/store'
+import { useViewSettings } from '../state/viewSettings'
+import { dmxBus } from '../state/dmxBus'
+import { runDemo } from '../state/demo'
+import { decodeHeads } from '../model/heads'
+import { useMix } from '../state/mix'
+import { getFixtureType } from '../model/fixtureTypes'
+import type { Project } from '../model/project'
+import { applyAmbient, buildStage, type Stage } from './stage'
+import { projectors } from './projectors'
+import { setProjectors } from './roomMaterial'
+import { roomOf, type RoomSettings } from '../model/project'
+import { useFixtureMenu } from '../state/fixtureMenu'
+import { FixtureHud, FixtureMenu } from '../ui/FixtureActions'
+import { FixtureRig } from './fixtureRig'
+
+export function Viewport() {
+  const host = useRef<HTMLDivElement>(null)
+  const wrap = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    const container = host.current!
+    const renderer = new THREE.WebGLRenderer({ antialias: true })
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2))
+    renderer.toneMapping = THREE.ACESFilmicToneMapping
+    renderer.toneMappingExposure = 1.1
+    container.appendChild(renderer.domElement)
+
+    const scene = new THREE.Scene()
+    scene.background = new THREE.Color(0x0b0c0f)
+    const fog = new THREE.FogExp2(0x0b0c0f, 0.025)
+
+    // --- The room: rebuilt when its settings change (ceiling, height, ambient light) ---
+    let stage: Stage | null = null
+    let builtRoom: RoomSettings | null = null
+    let builtFit: RoomFit | null = null
+    const syncRoom = (room: RoomSettings, fit: RoomFit) => {
+      const same =
+        builtRoom && builtFit && builtRoom.ceiling === room.ceiling && builtFit.ceiling === fit.ceiling &&
+        builtFit.wallZ === fit.wallZ && builtFit.halfWidth === fit.halfWidth && builtFit.front === fit.front
+      if (!same) {
+        if (stage) {
+          scene.remove(stage.group)
+          stage.group.traverse((o) => {
+            if (o instanceof THREE.Mesh) {
+              o.geometry.dispose()
+              ;(o.material as THREE.Material).dispose()
+            }
+          })
+        }
+        stage = buildStage(room, fit)
+        scene.add(stage.group)
+      }
+      if (room !== builtRoom || !same) applyAmbient(room, stage!, scene, fog)
+      builtRoom = room
+      builtFit = fit
+    }
+    // The room grows to hold the set: the back wall moves back, the ceiling goes up.
+    const fitRoom = (project: Project) => {
+      const room = roomOf(project)
+      syncRoom(room, roomFit(project, room.ceilingHeight))
+    }
+    fitRoom(useStore.getState().project)
+    const unsubscribeRoom = useStore.subscribe((s, prev) => {
+      if (s.project !== prev.project) fitRoom(s.project)
+    })
+
+    const camera = new THREE.PerspectiveCamera(45, 1, 0.1, 200)
+    camera.position.set(0, 4.5, 15)
+    const controls = new OrbitControls(camera, renderer.domElement)
+    controls.target.set(0, 2.5, -1)
+    controls.enableDamping = true
+    // For screenshots and debugging: window.__lookAt(x, y, z, targetX, targetY, targetZ)
+    ;(window as unknown as { __lookAt?: (...v: number[]) => void }).__lookAt = (x, y, z, tx, ty, tz) => {
+      camera.position.set(x, y, z)
+      controls.target.set(tx, ty, tz)
+    }
+    // You can look up at the ceiling; the camera just never goes below the floor (see the frame loop).
+    controls.maxPolarAngle = Math.PI * 0.94
+
+    // --- Camera moves: presets, framing, stored positions (eased, not jumped) ---
+    let flight: { from: THREE.Vector3; to: THREE.Vector3; fromT: THREE.Vector3; toT: THREE.Vector3; t: number } | null = null
+    const flyTo = (position: THREE.Vector3, target: THREE.Vector3) => {
+      // Drop any leftover orbit momentum, or the camera keeps drifting after it lands.
+      controls.enableDamping = false
+      controls.update()
+      controls.enableDamping = true
+      flight = { from: camera.position.clone(), to: position, fromT: controls.target.clone(), toT: target, t: 0 }
+    }
+    const PRESETS: Record<ViewPreset, [[number, number, number], [number, number, number]]> = {
+      perspective: [[0, 4.5, 15], [0, 2.5, -1]],
+      top: [[0, 24, 0.6], [0, 0, 0]],
+      front: [[0, 2.6, 16], [0, 2.6, 0]],
+      left: [[-16, 3, 0.5], [0, 2.4, 0]],
+      right: [[16, 3, 0.5], [0, 2.4, 0]],
+      // Standing in the audience, looking up: where the gobos land on the ceiling.
+      up: [[0, 1.4, 9], [0, 6.2, -0.5]]
+    }
+    const frame = (objects: THREE.Object3D[]) => {
+      const box = new THREE.Box3()
+      for (const o of objects) box.expandByObject(o)
+      if (box.isEmpty()) return
+      const center = box.getCenter(new THREE.Vector3())
+      const size = box.getSize(new THREE.Vector3()).length()
+      const distance = Math.max(2.5, (size / 2 / Math.tan((camera.fov * Math.PI) / 360)) * 1.3)
+      const direction = camera.position.clone().sub(controls.target).normalize()
+      flyTo(center.clone().add(direction.multiplyScalar(distance)), center)
+    }
+
+    // --- Keep one FixtureRig per fixture in the project ---
+    const rigs = new Map<string, FixtureRig>()
+    const sync = (project: Project, selection: string[]) => {
+      const seen = new Set<string>()
+      for (const fixture of project.fixtures) {
+        seen.add(fixture.id)
+        let rig = rigs.get(fixture.id)
+        // Rebuild if the kind of fixture changed; otherwise just move it.
+        if (rig && (rig.typeId !== fixture.typeId || rig.mounting !== fixture.mounting || rig.typeVersion !== getFixtureType(fixture.typeId))) {
+          scene.remove(rig.root)
+          rig.dispose()
+          rig = undefined
+        }
+        if (!rig) {
+          rig = new FixtureRig(fixture, getFixtureType(fixture.typeId))
+          rigs.set(fixture.id, rig)
+          scene.add(rig.root)
+        }
+        rig.place(fixture)
+        rig.setSelected(selection.includes(fixture.id))
+      }
+      for (const [id, rig] of rigs) {
+        if (seen.has(id)) continue
+        scene.remove(rig.root)
+        rig.dispose()
+        rigs.delete(id)
+      }
+    }
+    // --- And one StructureRig per set piece ---
+    const sets = new Map<string, StructureRig>()
+    const syncSets = (project: Project, selection: string[]) => {
+      const seen = new Set<string>()
+      for (const st of project.structures ?? []) {
+        seen.add(st.id)
+        let rig = sets.get(st.id)
+        if (!rig) {
+          rig = new StructureRig(st)
+          sets.set(st.id, rig)
+          scene.add(rig.root)
+        } else rig.update(st)
+        rig.setSelected(selection.includes(st.id))
+      }
+      for (const [id, rig] of sets) {
+        if (seen.has(id)) continue
+        scene.remove(rig.root)
+        rig.dispose()
+        sets.delete(id)
+      }
+    }
+    sync(useStore.getState().project, useStore.getState().selection)
+    syncSets(useStore.getState().project, useStore.getState().selection)
+    const unsubscribe = useStore.subscribe((s, prev) => {
+      if (s.project !== prev.project || s.selection !== prev.selection) {
+        sync(s.project, s.selection)
+        syncSets(s.project, s.selection)
+      }
+    })
+
+    // --- Drag the selection around with a move gizmo (Capture's Move tool) ---
+    const gizmo = new TransformControls(camera, renderer.domElement)
+    gizmo.setTranslationSnap(0.05)
+    gizmo.setSize(0.75)
+    const pivot = new THREE.Object3D()
+    scene.add(pivot)
+    scene.add(gizmo.getHelper())
+    let dragStart: THREE.Vector3 | null = null
+    const placePivot = () => {
+      const { project, selection } = useStore.getState()
+      const chosen = [...project.fixtures, ...(project.structures ?? [])].filter((f) => selection.includes(f.id))
+      if (!chosen.length || useViewSettings.getState().tool !== 'move') return gizmo.detach()
+      const c = chosen.reduce((a, f) => a.add(new THREE.Vector3(...f.position)), new THREE.Vector3()).divideScalar(chosen.length)
+      pivot.position.copy(c)
+      gizmo.attach(pivot)
+    }
+    placePivot()
+    const unsubscribeGizmo = useStore.subscribe((s, prev) => {
+      if ((s.selection !== prev.selection || s.project !== prev.project) && !dragStart) placePivot()
+    })
+    gizmo.addEventListener('dragging-changed', (event) => {
+      controls.enabled = !event.value
+      if (event.value) {
+        dragStart = pivot.position.clone()
+      } else if (dragStart) {
+        const d = pivot.position.clone().sub(dragStart)
+        dragStart = null
+        moveSelection(useStore.getState().selection, [d.x, d.y, d.z])
+      }
+    })
+    gizmo.addEventListener('objectChange', () => {
+      // Live preview while dragging; the move becomes one undo step when you let go.
+      if (!dragStart) return
+      const d = pivot.position.clone().sub(dragStart)
+      previewMove(useStore.getState().selection, d, true)
+    })
+
+    /** Show a move before it's made: the selection, and whatever is attached to moved set pieces. */
+    const previewMove = (ids: string[], d: THREE.Vector3, vertical: boolean) => {
+      const { project } = useStore.getState()
+      const movedSets = new Set((project.structures ?? []).filter((st) => ids.includes(st.id)).map((st) => st.id))
+      for (const st of project.structures ?? []) {
+        if (movedSets.has(st.id)) sets.get(st.id)?.root.position.set(st.position[0] + d.x, st.position[1], st.position[2] + d.z)
+      }
+      for (const f of project.fixtures) {
+        const onMoved = f.mount && movedSets.has(f.mount.structure)
+        if (!ids.includes(f.id) && !onMoved) continue
+        const dy = vertical && !onMoved ? d.y : 0
+        rigs.get(f.id)?.root.position.set(f.position[0] + d.x, Math.max(0, f.position[1] + dy), f.position[2] + d.z)
+      }
+    }
+
+    // --- Drop fixtures from the library onto the floor ---
+    const floor = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0)
+    const floorPoint = (clientX: number, clientY: number): THREE.Vector3 | null => {
+      const rect = renderer.domElement.getBoundingClientRect()
+      const p = new THREE.Vector2(((clientX - rect.left) / rect.width) * 2 - 1, -((clientY - rect.top) / rect.height) * 2 + 1)
+      const ray = new THREE.Raycaster()
+      ray.setFromCamera(p, camera)
+      return ray.ray.intersectPlane(floor, new THREE.Vector3())
+    }
+    const onDragOver = (e: DragEvent) => {
+      if (!e.dataTransfer?.types.includes(DRAG_TYPE) && !e.dataTransfer?.types.includes(STRUCTURE_DRAG)) return
+      e.preventDefault()
+      e.dataTransfer.dropEffect = 'copy'
+    }
+    const onDrop = (e: DragEvent) => {
+      const piece = e.dataTransfer?.getData(STRUCTURE_DRAG)
+      if (piece) {
+        e.preventDefault()
+        const drag = JSON.parse(piece) as StructureDrag
+        const at = floorPoint(e.clientX, e.clientY) ?? new THREE.Vector3(0, 0, 2)
+        const clamp = (v: number, m: number) => Math.max(-m, Math.min(m, v))
+        addStructure(drag.kind, drag.params, { at: [clamp(at.x, 30), 0, clamp(at.z, 25)] })
+        return
+      }
+      const raw = e.dataTransfer?.getData(DRAG_TYPE)
+      if (!raw) return
+      e.preventDefault()
+      const payload = JSON.parse(raw) as DragPayload
+      const type = 'rig' in payload ? getFixtureType(payload.rig) : useLibrary.getState().typeFor(payload.library, payload.mode)
+      if (!type || type.id === 'unknown') return
+      // Dropped onto a totem, stand, truss or booth: attached to it.
+      const snap = snapAt(e.clientX, e.clientY, 40)
+      if (snap) {
+        addLibraryFixtures(type, 1, { at: snap.position, mount: { structure: snap.structure.id, point: snap.point.id, t: snap.t } })
+        return
+      }
+      const at = floorPoint(e.clientX, e.clientY) ?? new THREE.Vector3(0, 0, 0)
+      const clamp = (v: number, m: number) => Math.max(-m, Math.min(m, v))
+      addLibraryFixtures(type, 1, { at: [clamp(at.x, 30), 0.1, clamp(at.z, 25)] })
+    }
+    container.addEventListener('dragover', onDragOver)
+    container.addEventListener('drop', onDrop)
+
+    // --- Mouse tools -------------------------------------------------------------
+    // Select (default): click a fixture to select it, Shift-click to add or remove,
+    // drag on empty space to box-select. Move: the same, and dragging a fixture
+    // slides it across the floor (or along the truss); the arrows move it in 3D.
+    // Holding Space (or the Orbit tool) turns the mouse into the camera:
+    // drag to orbit, Shift+drag to pan, Alt/Option+drag to zoom. The wheel always zooms.
+    const raycaster = new THREE.Raycaster()
+    const pointer = new THREE.Vector2()
+    const nav = { space: false, shift: false, alt: false }
+    const tool = () => useViewSettings.getState().tool
+    const navigating = () => nav.space || tool() === 'orbit'
+    let gesture: {
+      kind: 'none' | 'click' | 'box' | 'body' | 'set'
+      x: number
+      y: number
+      id?: string
+      plane?: THREE.Plane
+      from?: THREE.Vector3
+      delta?: THREE.Vector3
+      snap?: Snap | null
+      moved: boolean
+    } = { kind: 'none', x: 0, y: 0, moved: false }
+    const applyNav = () => {
+      const look = navigating()
+      controls.mouseButtons.LEFT = look ? (nav.shift ? THREE.MOUSE.PAN : nav.alt ? THREE.MOUSE.DOLLY : THREE.MOUSE.ROTATE) : null
+      controls.mouseButtons.MIDDLE = THREE.MOUSE.PAN
+      controls.mouseButtons.RIGHT = null
+      renderer.domElement.style.cursor = look ? 'grab' : gesture.kind === 'body' || gesture.kind === 'set' ? 'grabbing' : ''
+    }
+    applyNav()
+
+    const toNdc = (clientX: number, clientY: number) => {
+      const rect = renderer.domElement.getBoundingClientRect()
+      return new THREE.Vector2(((clientX - rect.left) / rect.width) * 2 - 1, -((clientY - rect.top) / rect.height) * 2 + 1)
+    }
+    const screenOf = (v: THREE.Vector3) => {
+      const p = v.clone().project(camera)
+      return { x: ((p.x + 1) / 2) * container.clientWidth, y: ((1 - p.y) / 2) * container.clientHeight, front: p.z < 1 }
+    }
+    /** The fixture under the pointer: what the ray hits, or failing that, the nearest one within a few pixels. */
+    const pick = (clientX: number, clientY: number): string | undefined => {
+      pointer.copy(toNdc(clientX, clientY))
+      raycaster.setFromCamera(pointer, camera)
+      const visible = [...rigs.values()].filter((r) => r.root.visible)
+      const hit = raycaster.intersectObjects(visible.map((r) => r.root), true).find((h) => h.object.userData.fixtureId)
+      if (hit) return hit.object.userData.fixtureId as string
+      const rect = renderer.domElement.getBoundingClientRect()
+      const x = clientX - rect.left
+      const y = clientY - rect.top
+      let best: string | undefined
+      // Over a set piece, only a fixture right under the pointer counts: the click is for the piece.
+      let bestD = pickStructure(clientX, clientY) ? 9 : 26
+      for (const r of visible) {
+        const s = screenOf(r.center())
+        const d = Math.hypot(s.x - x, s.y - y)
+        if (s.front && d < bestD) [best, bestD] = [r.fixtureId, d]
+      }
+      return best
+    }
+    const clickSelect = (id: string | undefined, add: boolean) => {
+      const { selection, select } = useStore.getState()
+      if (!id) select(add ? selection : [])
+      else if (add) select(selection.includes(id) ? selection.filter((s) => s !== id) : [...selection, id])
+      else select([id])
+    }
+
+    /** The set piece under the pointer, if any. */
+    const pickStructure = (clientX: number, clientY: number): string | undefined => {
+      raycaster.setFromCamera(toNdc(clientX, clientY), camera)
+      const hit = raycaster.intersectObjects([...sets.values()].map((r) => r.root), true).find((h) => h.object.userData.structureId)
+      return hit?.object.userData.structureId as string | undefined
+    }
+
+    /**
+     * The mount point nearest the pointer on screen, within `radius` pixels:
+     * a totem's top plate, a stretch of truss, a leg, a booth facade.
+     */
+    type Snap = { structure: Structure; point: MountPoint; t: number; position: [number, number, number] }
+    const snapAt = (clientX: number, clientY: number, radius: number, kinds?: MountPoint['kind'][]): Snap | null => {
+      const rect = renderer.domElement.getBoundingClientRect()
+      const x = clientX - rect.left
+      const y = clientY - rect.top
+      let best: Snap | null = null
+      let bestD = radius
+      for (const st of useStore.getState().project.structures ?? []) {
+        for (const m of mountPoints(st)) {
+          if (kinds && !kinds.includes(m.kind)) continue
+          // Along a bar: check points along it, then refine with the closest.
+          const samples = m.to ? 40 : 0
+          for (let i = 0; i <= samples; i++) {
+            const t = samples ? i / samples : 0
+            const w = toWorld(st, pointAt(m, t))
+            const sp = screenOf(new THREE.Vector3(...w))
+            const d = Math.hypot(sp.x - x, sp.y - y)
+            if (sp.front && d < bestD) {
+              bestD = d
+              best = { structure: st, point: m, t, position: w }
+            }
+          }
+        }
+      }
+      if (best?.point.to) {
+        // Refine t: project the pointer ray's closest point onto the bar.
+        raycaster.setFromCamera(toNdc(clientX, clientY), camera)
+        const a = new THREE.Vector3(...toWorld(best.structure, best.point.at))
+        const b = new THREE.Vector3(...toWorld(best.structure, best.point.to))
+        const onBar = new THREE.Vector3()
+        raycaster.ray.distanceSqToSegment(a, b, undefined, onBar)
+        const local = toLocalVec(best.structure, onBar)
+        const { t } = nearestOn(best.point, local)
+        best = { ...best, t, position: toWorld(best.structure, pointAt(best.point, t)) }
+      }
+      return best
+    }
+    const toLocalVec = (st: Structure, w: THREE.Vector3): [number, number, number] => {
+      const a = (st.rotation * Math.PI) / 180
+      const dx = w.x - st.position[0]
+      const dz = w.z - st.position[2]
+      return [dx * Math.cos(a) - dz * Math.sin(a), w.y - st.position[1], dx * Math.sin(a) + dz * Math.cos(a)]
+    }
+
+    // While dragging a fixture: faint guides on every mount point, and a ring where it would attach.
+    let guides: THREE.Group | null = null
+    const ring = new THREE.Mesh(new THREE.TorusGeometry(0.16, 0.018, 8, 32), new THREE.MeshBasicMaterial({ color: 0x4da3ff, depthTest: false, transparent: true, opacity: 0.95 }))
+    ring.renderOrder = 21
+    ring.visible = false
+    ring.raycast = () => {}
+    scene.add(ring)
+    const showGuides = (on: boolean) => {
+      if (guides) {
+        scene.remove(guides)
+        guides.traverse((o) => {
+          if (o instanceof THREE.LineSegments || o instanceof THREE.Points) {
+            o.geometry.dispose()
+            ;(o.material as THREE.Material).dispose()
+          }
+        })
+        guides = null
+      }
+      if (on) {
+        guides = mountGuides(useStore.getState().project.structures ?? [])
+        scene.add(guides)
+      }
+      if (!on) ring.visible = false
+    }
+    const showRing = (snap: Snap | null) => {
+      ring.visible = !!snap
+      if (!snap) return
+      ring.position.set(...snap.position)
+      // Flat for a top plate or under a bar, upright facing out for a clamp or facade.
+      const flat = snap.point.kind === 'top' || snap.point.kind === 'under'
+      ring.rotation.set(flat ? Math.PI / 2 : 0, flat ? 0 : (snap.structure.rotation * Math.PI) / 180, 0)
+    }
+
+    // For tests: where a fixture is on screen.
+    ;(window as unknown as { __screenOf?: (id: string) => unknown }).__screenOf = (id) => {
+      const rect = renderer.domElement.getBoundingClientRect()
+      const r = rigs.get(id)
+      if (r) {
+        const s = screenOf(r.center())
+        return { x: s.x + rect.left, y: s.y + rect.top }
+      }
+      // A set piece, or one of its mount points: "st-id" or "st-id/point".
+      const [sid, pid] = id.split('/')
+      const st = (useStore.getState().project.structures ?? []).find((x) => x.id === sid)
+      if (!st) return null
+      const m = pid ? mountPoints(st).find((x) => x.id === pid) : undefined
+      const w = m ? toWorld(st, pointAt(m, 0.5)) : ([st.position[0], st.position[1] + 0.5, st.position[2]] as [number, number, number])
+      const s = screenOf(new THREE.Vector3(...w))
+      return { x: s.x + rect.left, y: s.y + rect.top }
+    }
+    const marquee = document.createElement('div')
+    marquee.className = 'marquee'
+    container.appendChild(marquee)
+
+    const onModifiers = (e: KeyboardEvent | PointerEvent) => {
+      nav.shift = e.shiftKey
+      nav.alt = e.altKey
+    }
+    const typing = (e: Event) => e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement || e.target instanceof HTMLSelectElement
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (typing(e)) return
+      if (e.code === 'Space') {
+        e.preventDefault()
+        nav.space = true
+      }
+      if (e.key === 'Escape' && gesture.kind !== 'none') {
+        gesture = { kind: 'none', x: 0, y: 0, moved: false }
+        marquee.style.display = 'none'
+        showGuides(false)
+        sync(useStore.getState().project, useStore.getState().selection)
+        syncSets(useStore.getState().project, useStore.getState().selection)
+      }
+      onModifiers(e)
+      applyNav()
+    }
+    const onKeyUp = (e: KeyboardEvent) => {
+      if (e.code === 'Space') nav.space = false
+      onModifiers(e)
+      applyNav()
+    }
+    const onBlur = () => {
+      nav.space = nav.shift = nav.alt = false
+      applyNav()
+    }
+    window.addEventListener('keydown', onKeyDown)
+    window.addEventListener('keyup', onKeyUp)
+    window.addEventListener('blur', onBlur)
+    const unsubscribeTool = useViewSettings.subscribe((s, prev) => {
+      if (s.tool !== prev.tool) {
+        applyNav()
+        placePivot()
+      }
+    })
+
+    // Runs before OrbitControls sees the press, so it uses the right button mapping.
+    const onDownCapture = (e: PointerEvent) => {
+      onModifiers(e)
+      applyNav()
+    }
+    const onDown = (e: PointerEvent) => {
+      useFixtureMenu.getState().close()
+      if (e.button !== 0 || navigating() || gizmo.axis !== null) return
+      const id = pick(e.clientX, e.clientY)
+      const { selection, select } = useStore.getState()
+      const piece = id ? undefined : pickStructure(e.clientX, e.clientY)
+      if (piece) {
+        // A set piece: click to select it; with the Move tool, drag it across the floor.
+        const st = (useStore.getState().project.structures ?? []).find((x) => x.id === piece)!
+        if (tool() === 'move') {
+          if (!selection.includes(piece)) select(e.shiftKey ? [...selection, piece] : [piece])
+          const plane = new THREE.Plane(new THREE.Vector3(0, 1, 0), -st.position[1])
+          raycaster.setFromCamera(toNdc(e.clientX, e.clientY), camera)
+          const from = raycaster.ray.intersectPlane(plane, new THREE.Vector3())
+          gesture = { kind: from ? 'set' : 'click', x: e.clientX, y: e.clientY, id: piece, plane, from: from ?? undefined, delta: new THREE.Vector3(), moved: false }
+        } else {
+          gesture = { kind: 'click', x: e.clientX, y: e.clientY, id: piece, moved: false }
+        }
+        renderer.domElement.setPointerCapture(e.pointerId)
+        applyNav()
+        return
+      }
+      if (tool() === 'move' && id) {
+        // Drag the fixture: it slides on a level plane at its own height.
+        if (!selection.includes(id)) select(e.shiftKey ? [...selection, id] : [id])
+        const fixture = useStore.getState().project.fixtures.find((f) => f.id === id)!
+        const plane = new THREE.Plane(new THREE.Vector3(0, 1, 0), -fixture.position[1])
+        raycaster.setFromCamera(toNdc(e.clientX, e.clientY), camera)
+        const from = raycaster.ray.intersectPlane(plane, new THREE.Vector3())
+        gesture = { kind: from ? 'body' : 'click', x: e.clientX, y: e.clientY, id, plane, from: from ?? undefined, delta: new THREE.Vector3(), moved: false }
+      } else {
+        gesture = { kind: id ? 'click' : 'box', x: e.clientX, y: e.clientY, id, moved: false }
+      }
+      renderer.domElement.setPointerCapture(e.pointerId)
+      applyNav()
+    }
+    const onMove = (e: PointerEvent) => {
+      if (gesture.kind === 'none') return
+      const far = Math.hypot(e.clientX - gesture.x, e.clientY - gesture.y) > 4
+      if (!far && !gesture.moved) return
+      gesture.moved = true
+      if (gesture.kind === 'click') gesture.kind = 'box' // dragging from a fixture also box-selects
+      if (gesture.kind === 'box') {
+        const rect = renderer.domElement.getBoundingClientRect()
+        const x0 = Math.min(gesture.x, e.clientX) - rect.left
+        const y0 = Math.min(gesture.y, e.clientY) - rect.top
+        Object.assign(marquee.style, { display: 'block', left: `${x0}px`, top: `${y0}px`, width: `${Math.abs(e.clientX - gesture.x)}px`, height: `${Math.abs(e.clientY - gesture.y)}px` })
+      } else if ((gesture.kind === 'body' || gesture.kind === 'set') && gesture.plane && gesture.from) {
+        if (gesture.kind === 'body' && !guides) showGuides(true)
+        raycaster.setFromCamera(toNdc(e.clientX, e.clientY), camera)
+        const at = raycaster.ray.intersectPlane(gesture.plane, new THREE.Vector3())
+        // Snap to 5 cm, like the arrows.
+        if (at) gesture.delta = at.sub(gesture.from).divideScalar(0.05).round().multiplyScalar(0.05)
+        const delta = gesture.delta ?? new THREE.Vector3()
+        const { selection } = useStore.getState()
+        if (gesture.kind === 'set') {
+          previewMove(selection, delta, false)
+          return
+        }
+        // A fixture near a mount point snaps onto it: a totem top, a truss, a facade.
+        gesture.snap = snapAt(e.clientX, e.clientY, 28)
+        showRing(gesture.snap)
+        previewMove(selection, delta, false)
+        if (gesture.snap && gesture.id) rigs.get(gesture.id)?.root.position.set(...gesture.snap.position)
+      }
+    }
+    const onUp = (e: PointerEvent) => {
+      if (gesture.kind === 'none' || e.button !== 0) return
+      const g = gesture
+      gesture = { kind: 'none', x: 0, y: 0, moved: false }
+      marquee.style.display = 'none'
+      if (renderer.domElement.hasPointerCapture(e.pointerId)) renderer.domElement.releasePointerCapture(e.pointerId)
+      applyNav()
+      if (g.kind === 'body') {
+        showGuides(false)
+        const { selection } = useStore.getState()
+        const fixtures = useStore.getState().project.fixtures.filter((f) => selection.includes(f.id)).map((f) => f.id)
+        if (g.moved && g.snap) mountFixtures(fixtures, g.snap.structure.id, g.snap.point.id, g.snap.t)
+        else if (g.moved && g.delta) moveFixtures(fixtures, [g.delta.x, 0, g.delta.z])
+        else clickSelect(g.id, e.shiftKey)
+        sync(useStore.getState().project, useStore.getState().selection)
+        return
+      }
+      if (g.kind === 'set') {
+        if (g.moved && g.delta) moveSelection(useStore.getState().selection, [g.delta.x, 0, g.delta.z])
+        else clickSelect(g.id, e.shiftKey)
+        syncSets(useStore.getState().project, useStore.getState().selection)
+        sync(useStore.getState().project, useStore.getState().selection)
+        return
+      }
+      if (g.kind === 'box' && g.moved) {
+        const rect = renderer.domElement.getBoundingClientRect()
+        const [x0, x1] = [Math.min(g.x, e.clientX) - rect.left, Math.max(g.x, e.clientX) - rect.left]
+        const [y0, y1] = [Math.min(g.y, e.clientY) - rect.top, Math.max(g.y, e.clientY) - rect.top]
+        const inside = [...rigs.values()]
+          .filter((r) => r.root.visible)
+          .filter((r) => {
+            const s = screenOf(r.center())
+            return s.front && s.x >= x0 && s.x <= x1 && s.y >= y0 && s.y <= y1
+          })
+          .map((r) => r.fixtureId)
+        const { selection, select } = useStore.getState()
+        select(e.shiftKey ? [...new Set([...selection, ...inside])] : inside)
+        return
+      }
+      clickSelect(g.id, e.shiftKey)
+    }
+    renderer.domElement.addEventListener('pointerdown', onDownCapture, { capture: true })
+    renderer.domElement.addEventListener('pointerdown', onDown)
+    renderer.domElement.addEventListener('pointermove', onMove)
+    renderer.domElement.addEventListener('pointerup', onUp)
+
+    // --- Right-click a fixture for its actions ---
+    const onContext = (e: MouseEvent) => {
+      e.preventDefault()
+      const rect = renderer.domElement.getBoundingClientRect()
+      const id = pick(e.clientX, e.clientY) ?? pickStructure(e.clientX, e.clientY)
+      const { selection, select } = useStore.getState()
+      if (id && !selection.includes(id)) select([id])
+      if (id || selection.length) useFixtureMenu.getState().open(e.clientX - rect.left, e.clientY - rect.top)
+    }
+    renderer.domElement.addEventListener('contextmenu', onContext)
+
+    // --- Double-click a set piece to edit it ---
+    const onDouble = (e: MouseEvent) => {
+      if (navigating() || pick(e.clientX, e.clientY)) return
+      const piece = pickStructure(e.clientX, e.clientY)
+      if (!piece) return
+      useStore.getState().select([piece])
+      useStructureEditor.getState().set(true)
+    }
+    renderer.domElement.addEventListener('dblclick', onDouble)
+
+    // --- Resize with the panel ---
+    const resize = () => {
+      const { clientWidth: w, clientHeight: h } = container
+      renderer.setSize(w, h)
+      camera.aspect = w / Math.max(1, h)
+      camera.updateProjectionMatrix()
+    }
+    const observer = new ResizeObserver(resize)
+    observer.observe(container)
+    resize()
+
+    registerView({
+      preset: (v) => {
+        const [p, t] = PRESETS[v]
+        flyTo(new THREE.Vector3(...p), new THREE.Vector3(...t))
+      },
+      focus: (ids) => {
+        const list = ids === 'all' ? [...rigs.values(), ...sets.values()] : ids.map((id) => rigs.get(id) ?? sets.get(id)).filter((r): r is FixtureRig | StructureRig => !!r)
+        frame(list.map((r) => r.root))
+      },
+      goTo: (p, t) => flyTo(new THREE.Vector3(...p), new THREE.Vector3(...t)),
+      current: () => ({ position: camera.position.toArray() as [number, number, number], target: controls.target.toArray() as [number, number, number] }),
+      capture: () => {
+        // Draw a frame without the gizmo, then read the canvas straight away.
+        const helper = gizmo.getHelper()
+        const was = helper.visible
+        helper.visible = false
+        renderer.render(scene, camera)
+        const url = renderer.domElement.toDataURL('image/png')
+        helper.visible = was
+        return url
+      }
+    })
+
+    // --- Keep the fixture action bar above the selection, on screen ---
+    const hudAt = new THREE.Vector3()
+    const placeHud = () => {
+      const el = wrap.current
+      if (!el) return
+      const { project, selection } = useStore.getState()
+      const fixtures = project.fixtures.filter((f) => selection.includes(f.id))
+      // Set pieces get the bar too, when no fixture is selected.
+      const pieces = fixtures.length ? [] : (project.structures ?? []).filter((st) => selection.includes(st.id))
+      const chosen = fixtures.length
+        ? fixtures.map((f) => ({ id: f.id, position: f.position, top: f.mounting === 'hanging' ? 0.15 : 0.6 }))
+        : pieces.map((st) => ({ id: st.id, position: st.position, top: (sets.get(st.id) ? new THREE.Box3().setFromObject(sets.get(st.id)!.root).max.y - st.position[1] : 1) + 0.1 }))
+      if (!chosen.length || dragStart || gesture.kind === 'body' || gesture.kind === 'set') {
+        el.style.setProperty('--hud-show', '0')
+        el.style.setProperty('--hud-events', 'none')
+        return
+      }
+      hudAt.set(0, 0, 0)
+      let highest = -Infinity
+      for (const f of chosen) {
+        const rig = rigs.get(f.id) ?? sets.get(f.id)
+        const p = rig ? rig.root.position : new THREE.Vector3(...f.position)
+        hudAt.x += p.x
+        hudAt.z += p.z
+        highest = Math.max(highest, p.y + f.top)
+      }
+      hudAt.x /= chosen.length
+      hudAt.z /= chosen.length
+      hudAt.y = highest
+      hudAt.project(camera)
+      const visible = hudAt.z < 1 && Math.abs(hudAt.x) < 1.1 && Math.abs(hudAt.y) < 1.1
+      el.style.setProperty('--hud-show', visible ? '1' : '0')
+      el.style.setProperty('--hud-events', visible ? 'auto' : 'none')
+      // Keep the whole bar on screen and clear of the view toolbar.
+      const hud = el.querySelector<HTMLElement>('.fixture-hud')
+      const halfW = (hud?.offsetWidth ?? 300) / 2
+      const h = hud?.offsetHeight ?? 34
+      const x = Math.min(container.clientWidth - halfW - 8, Math.max(halfW + 8, ((hudAt.x + 1) / 2) * container.clientWidth))
+      const y = Math.max(h + 60, ((1 - hudAt.y) / 2) * container.clientHeight)
+      el.style.setProperty('--hud-x', `${x}px`)
+      el.style.setProperty('--hud-y', `${y}px`)
+    }
+
+    // --- The frame loop: DMX in, mechanics, draw ---
+    const timer = new THREE.Timer()
+    let frameId = 0
+    const tick = (now?: number) => {
+      frameId = requestAnimationFrame(tick)
+      timer.update(now)
+      const dt = Math.min(0.1, timer.getDelta())
+      const time = timer.getElapsed()
+      const { project } = useStore.getState()
+      const { haze, demo } = useViewSettings.getState()
+      if (demo) runDemo(project, time)
+
+      projectors.begin()
+      dmxBus.alignUniverses([...new Set(project.fixtures.map((f) => f.universe))])
+      const universes = new Map<number, Uint8Array>()
+      for (const fixture of project.fixtures) {
+        const rig = rigs.get(fixture.id)
+        if (!rig) continue
+        let levels = universes.get(fixture.universe)
+        if (!levels) {
+          levels = dmxBus.levels(fixture.universe).slice()
+          universes.set(fixture.universe, levels)
+        }
+        const mix = useMix.getState()
+        rig.root.visible = !mix.hidden.includes(fixture.id)
+        if (!rig.root.visible) continue
+        if (mix.isLive(fixture.id)) rig.update(decodeHeads(getFixtureType(fixture.typeId), levels, fixture.address, time), dt, haze, time)
+        else rig.blackout(haze, time)
+      }
+      fog.density = 0.008 + haze * 0.025
+      scene.fog = haze > 0 ? fog : null
+      if (flight) {
+        flight.t = Math.min(1, flight.t + dt / 0.45)
+        const k = 1 - Math.pow(1 - flight.t, 3)
+        camera.position.lerpVectors(flight.from, flight.to, k)
+        controls.target.lerpVectors(flight.fromT, flight.toT, k)
+        if (flight.t >= 1) flight = null
+      }
+      const lit = projectors.brightest()
+      setProjectors(lit, time)
+      ;(window as unknown as { __projectors?: unknown }).__projectors = { total: projectors.count(), used: lit.length, up: lit.filter((p) => p.direction.y > 0.2).length }
+      controls.update()
+      // Looking up is allowed; going through the floor (or the ceiling) isn't.
+      const top = builtRoom?.ceiling && builtFit ? builtFit.ceiling - 0.25 : 1e4
+      if (camera.position.y < 0.3 || camera.position.y > top) {
+        const y = Math.min(top, Math.max(0.3, camera.position.y))
+        camera.position.y = y
+      }
+      placeHud()
+      renderer.render(scene, camera)
+    }
+    tick()
+
+    return () => {
+      cancelAnimationFrame(frameId)
+      registerView(null)
+      unsubscribe()
+      unsubscribeRoom()
+      renderer.domElement.removeEventListener('contextmenu', onContext)
+      renderer.domElement.removeEventListener('dblclick', onDouble)
+      unsubscribeGizmo()
+      gizmo.dispose()
+      container.removeEventListener('dragover', onDragOver)
+      container.removeEventListener('drop', onDrop)
+      observer.disconnect()
+      renderer.domElement.removeEventListener('pointerdown', onDownCapture, { capture: true })
+      renderer.domElement.removeEventListener('pointerdown', onDown)
+      renderer.domElement.removeEventListener('pointermove', onMove)
+      renderer.domElement.removeEventListener('pointerup', onUp)
+      window.removeEventListener('keydown', onKeyDown)
+      window.removeEventListener('keyup', onKeyUp)
+      window.removeEventListener('blur', onBlur)
+      unsubscribeTool()
+      marquee.remove()
+      for (const rig of rigs.values()) rig.dispose()
+      for (const rig of sets.values()) rig.dispose()
+      showGuides(false)
+      controls.dispose()
+      renderer.dispose()
+      container.removeChild(renderer.domElement)
+    }
+  }, [])
+
+  return (
+    <div className="viewport-wrap" ref={wrap}>
+      <div className="viewport" ref={host} />
+      <FixtureHud />
+      <FixtureMenu />
+      <StructureHud />
+      <StructureMenu />
+      <ShowBuilder />
+      <StructureEditor />
+      <ViewToolbar />
+      <Notices />
+    </div>
+  )
+}
