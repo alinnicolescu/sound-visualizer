@@ -79,7 +79,7 @@ export function NewShow() {
   const choose = (s: Start) => {
     setStart(s)
     if (s === 'demo') {
-      close()
+      close(true)
       void startFromTemplate('club').then(() => useViewSettings.getState().setDemo(true))
       return
     }
@@ -124,7 +124,7 @@ export function NewShow() {
       }
     }
     useDocument.getState().setSaved(null, null)
-    close()
+    close(start === 'describe' ? 'build' : true)
     setTimeout(() => view.focus('all'), 50)
   }
 
@@ -145,13 +145,13 @@ export function NewShow() {
               ))}
             </ol>
           )}
-          <button className="mini" onClick={close} title="Close (Esc)">
+          <button className="mini" onClick={() => close()} title="Close (Esc)">
             ✕
           </button>
         </div>
 
         <div className="wizard-body">
-          {step === 'start' && <StartStep profiles={profiles} onChoose={choose} onTemplate={(id) => (close(), void startFromTemplate(id))} />}
+          {step === 'start' && <StartStep profiles={profiles} onChoose={choose} onTemplate={(id) => (close(true), void startFromTemplate(id))} />}
           {step === 'profile' && <ProfileStep profiles={profiles} loading={loading} error={error} onPick={pickProfile} onBrowse={browse} />}
           {step === 'fixtures' && profile && <FixturesStep profile={profile} rows={rows} setRows={setRows} mirror={mirror} setMirror={setMirror} standFt={standFt} setStandFt={setStandFt} />}
           {step === 'finish' && <FinishStep name={name} setName={setName} room={room} setRoom={setRoom} start={start!} summary={start === 'soundswitch' ? planSummary(rows) : null} />}

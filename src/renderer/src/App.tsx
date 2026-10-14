@@ -11,7 +11,8 @@ import { LibraryPanel } from './ui/LibraryPanel'
 import { ObjectsPanel } from './ui/ObjectsPanel'
 import { NewShow } from './ui/NewShow'
 import { Welcome } from './ui/Welcome'
-import { useWizards, welcomeSeen } from './state/wizards'
+import { FreshStartConfirm, useFirstLaunch, WelcomeBack } from './ui/FreshStart'
+import { ToursDialog, TourOverlay } from './ui/Tour'
 import { Inspector } from './ui/Inspector'
 import { DmxMap } from './ui/DmxMap'
 import { Faders } from './ui/Faders'
@@ -69,10 +70,9 @@ export function App() {
     }
   }, [])
 
-  // The first time the app opens: a short tour, then making a first show.
-  useEffect(() => {
-    if (!welcomeSeen()) useWizards.getState().openWelcome()
-  }, [])
+  // The first time the app opens: the welcome, then making a first show, then a tour.
+  // After a reinstall or update: carry on, or start fresh as a new user.
+  useFirstLaunch()
 
   // Point the moving heads down when fixtures appear, so nothing starts aimed at the ceiling.
   const project = useStore((s) => s.project)
@@ -103,42 +103,46 @@ export function App() {
     <div className={`app ${fullView ? 'full' : ''}`}>
       <NewShow />
       <Welcome />
+      <WelcomeBack />
+      <FreshStartConfirm />
+      <ToursDialog />
+      <TourOverlay />
       <Toolbar artNet={artNet} />
       {!fullView && (
         <aside className="panel left">
-          <div className="tabs">
-            <button className={leftTab === 'fixtures' ? 'tab active' : 'tab'} onClick={() => setLeftTab('fixtures')}>
+          <div className="tabs" data-tour="left-tabs">
+            <button data-tour="tab-fixtures" className={leftTab === 'fixtures' ? 'tab active' : 'tab'} onClick={() => setLeftTab('fixtures')}>
               Fixtures
             </button>
-            <button className={leftTab === 'library' ? 'tab active' : 'tab'} onClick={() => setLeftTab('library')} title="Browse and add fixtures (Cmd+L)">
+            <button data-tour="tab-library" className={leftTab === 'library' ? 'tab active' : 'tab'} onClick={() => setLeftTab('library')} title="Browse and add fixtures (Cmd+L)">
               Library
             </button>
-            <button className={leftTab === 'set' ? 'tab active' : 'tab'} onClick={() => setLeftTab('set')} title="Stands, truss, staging, speakers, furniture, walls and people">
+            <button data-tour="tab-objects" className={leftTab === 'set' ? 'tab active' : 'tab'} onClick={() => setLeftTab('set')} title="Stands, truss, staging, speakers, furniture, walls and people">
               Objects
             </button>
           </div>
           <ErrorBoundary name={leftTab}>{leftTab === 'library' ? <LibraryPanel /> : leftTab === 'set' ? <ObjectsPanel /> : <FixtureList />}</ErrorBoundary>
         </aside>
       )}
-      <main className="center">
+      <main className="center" data-tour="viewport">
         <ErrorBoundary name="3D view">
           <Viewport />
         </ErrorBoundary>
       </main>
       {!fullView && (
-        <aside className="panel right">
+        <aside className="panel right" data-tour="inspector">
           <ErrorBoundary name="inspector">
             <Inspector />
           </ErrorBoundary>
         </aside>
       )}
       {!fullView && (
-        <section className="panel bottom">
+        <section className="panel bottom" data-tour="bottom">
           <div className="tabs">
-            <button className={bottomTab === 'faders' ? 'tab active' : 'tab'} onClick={() => setBottomTab('faders')}>
+            <button data-tour="tab-faders" className={bottomTab === 'faders' ? 'tab active' : 'tab'} onClick={() => setBottomTab('faders')}>
               Faders
             </button>
-            <button className={bottomTab === 'universe' ? 'tab active' : 'tab'} onClick={() => setBottomTab('universe')} title="Where every fixture sits across the DMX channels, like SoundSwitch's DMX map">
+            <button data-tour="tab-dmx" className={bottomTab === 'universe' ? 'tab active' : 'tab'} onClick={() => setBottomTab('universe')} title="Where every fixture sits across the DMX channels, like SoundSwitch's DMX map">
               DMX Map
             </button>
           </div>

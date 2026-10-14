@@ -102,6 +102,9 @@ export function Welcome() {
           <li>
             <b>Export MVR</b> for Capture, grandMA3 and Vectorworks, or a patch list for the paperwork.
           </li>
+          <li>
+            Lost? <b>? Learn</b> (top right) or <b>Help ▸ Guided Tours</b> walk you through each part of the app, pointing at the real buttons.
+          </li>
         </ul>
       )
     }
@@ -138,7 +141,7 @@ export function Welcome() {
                 openNewShow()
               }}
             >
-              Create my first show
+              {useWizards.getState().firstRun ? 'Create my first show' : 'Make a new show'}
             </button>
           ) : (
             <button className="primary" onClick={() => setI(i + 1)}>

@@ -14,6 +14,7 @@ export type MenuCommand =
   | 'viewPerspective' | 'viewTop' | 'viewFront' | 'viewLeft' | 'viewRight' | 'viewUp' | 'focusSelection' | 'focusAll' | 'toggleFullView'
   | 'showLibrary' | 'showFixtures' | 'toolSelect' | 'toolMove' | 'toolOrbit'
   | 'welcome' | 'builder' | 'importShow' | 'openMvr' | 'exportMvr' | 'exportCsv' | `template:${string}`
+  | 'freshStart' | 'tours' | `tour:${string}`
 
 export function buildMenu(getWindow: () => BrowserWindow | null): void {
   const send = (command: MenuCommand) => () => getWindow()?.webContents.send('menu', command)
@@ -100,6 +101,21 @@ export function buildMenu(getWindow: () => BrowserWindow | null): void {
       role: 'help',
       submenu: [
         { label: 'Welcome Tour', click: send('welcome') },
+        {
+          label: 'Guided Tours',
+          submenu: [
+            { label: 'Getting Around the Screen', click: send('tour:basics') },
+            { label: 'Making a Show', click: send('tour:build') },
+            { label: 'Adding Lights', click: send('tour:lights') },
+            { label: 'Objects, Moving and Lining Up', click: send('tour:objects') },
+            { label: 'SoundSwitch and Live DMX', click: send('tour:soundswitch') },
+            { label: 'Looking Good: Cameras, Room and Pictures', click: send('tour:present') },
+            { type: 'separator' },
+            { label: 'All Tours…', click: send('tours') }
+          ]
+        },
+        { type: 'separator' },
+        { label: 'Start Fresh as a New User…', click: send('freshStart') },
         { type: 'separator' },
         { label: 'Open Fixture Library Website', click: () => shell.openExternal('https://open-fixture-library.org') },
         { label: 'Open Log Folder', click: () => shell.openPath(logFolder()) }

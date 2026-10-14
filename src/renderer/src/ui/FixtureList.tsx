@@ -85,7 +85,7 @@ export function FixtureList() {
         </div>
       </div>
       <GroupBar group={group} setGroup={setGroup} />
-      <input className="filter" placeholder="Filter fixtures…" value={filter} onChange={(e) => setFilter(e.target.value)} />
+      <input data-tour="fixture-filter" className="filter" placeholder="Filter fixtures…" value={filter} onChange={(e) => setFilter(e.target.value)} />
       <table>
         <thead>
           <tr>

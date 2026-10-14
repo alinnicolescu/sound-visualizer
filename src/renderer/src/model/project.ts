@@ -194,7 +194,15 @@ export function newId(): string {
   return `fx-${Date.now().toString(36)}-${counter}`
 }
 
-/** The rig you see on first launch: six spots on an overhead truss and four PARs on the floor. */
+/**
+ * What a new Mac starts with: an empty room and a show that doesn't follow
+ * SoundSwitch yet. The New Show wizard (or Build show) fills it in.
+ */
+export function blankProject(): Project {
+  return { ...defaultProject(), name: 'Untitled show', fixtures: [], fixtureTypes: [], structures: [], cameras: [], soundswitch: { link: false } }
+}
+
+/** The demo rig: six spots on an overhead truss and four PARs on the floor. */
 export function defaultProject(): Project {
   const fixtures: Fixture[] = []
   for (let i = 0; i < 6; i++) {

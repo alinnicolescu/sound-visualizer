@@ -4,7 +4,13 @@ A 3D lighting visualizer. It reads your SoundSwitch rig, draws each fixture to i
 
 *Works with SoundSwitch. SoundSwitch is a trademark of inMusic; Sound Visualizer is not affiliated with or endorsed by inMusic.*
 
-**For people using the app:** download the `.dmg` from this repository's [Releases](../../releases/latest) page, open it, drag Sound Visualizer to Applications, open it (the release notes say how to get past macOS's first-open warning). Nothing else to install. The first time, a five-step welcome shows what's where, then **New show** offers four starts: from your SoundSwitch project, by describing it, from scratch, or the demo show.
+**For people using the app:** download the `.dmg` from this repository's [Releases](../../releases/latest) page, open it, drag Sound Visualizer to Applications, open it (the release notes say how to get past macOS's first-open warning). Nothing else to install. The first time, it starts with an empty show: a five-step welcome, then **New show** (from your SoundSwitch project, by describing it, from scratch, or the demo show), then a short guided tour of the screen.
+
+## Learning the app
+
+- **? Learn** (top right) and **Help ▸ Guided Tours** have short tours that dim the window and light up the real buttons one at a time: *Getting around the screen*, *Making a show*, *Adding lights*, *Objects, moving and lining up*, *SoundSwitch and live DMX*, and *Cameras, room and pictures*. Next/Back or the arrow keys step through; Esc ends one. Tours you've finished get a ✓.
+- **Help ▸ Welcome Tour** shows the welcome again.
+- **Starting fresh.** Deleting the app on a Mac leaves its settings behind, so after a reinstall or an update the app asks whether to carry on with your last show or **start fresh as a new user**. **Help ▸ Start Fresh as a New User…** (or ? Learn) does the same any time: the open show is cleared (saved show files are never touched), this Mac's SoundSwitch choices and the tour checkmarks are forgotten, and optionally the Claude key and imported fixture files too. The app then starts exactly as a new install would.
 
 It's built with Electron (desktop app), React (panels), three.js (3D) and TypeScript.
 
@@ -100,6 +106,8 @@ Click one to add it, or drag it into the view. **Click an object to edit it**: t
 ## Describe your show
 
 **✦ Build show** (Cmd+K) lets you type what you want, or talk: press Fn twice (Edit ▸ Start Dictation) in the box. For example: *"two Both Lighting 100 watt moving heads on 6 ft totems, one each side of the stage, the right one with pan inverted"*. It finds the fixtures in the library, adds the totems beside the stage, puts a head on each, patches them into free addresses and inverts the pan on one. The whole build is one undo step.
+
+Above the box you choose what happens to the show that's open: **＋ Add to this show** builds on what's already there, and **↺ Start a new show** clears the scene first, then builds (the button says *Clear and build*). Either way ⌘Z puts back what you had, and if nothing could be built the show is left as it was.
 
 - **Without setup**, a built-in reader understands requests like that one: a number of a fixture, on totems, FLEXstands or the truss, one each side, invert one.
 - **Connect Claude** (in the builder) to build anything you can describe, like "a 16 × 12 stage 2 ft high with a black skirt, a booth on it, four MH-150s on a 20 ft truss and uplights along the front". It needs an Anthropic API key from console.anthropic.com. The key is stored encrypted with your Mac's keychain and only the app's main process sends it to Anthropic; requests are billed to your API account.

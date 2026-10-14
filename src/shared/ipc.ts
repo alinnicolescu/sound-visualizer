@@ -80,6 +80,11 @@ export interface VisualizerApi {
   log(level: 'info' | 'warn' | 'error', message: string, detail?: unknown): void
   openLogs(): void
 
+  /** Is this a new copy of the app (reinstalled or updated) on a Mac that has used it before? */
+  installInfo(): Promise<{ changed: boolean; firstEver: boolean; version: string; previousVersion: string | null }>
+  /** Forget this Mac's SoundSwitch choices (and optionally the Claude key and imported fixtures). */
+  freshStart(options: { claudeKey?: boolean; importedFixtures?: boolean }): Promise<void>
+
   /** The show builder's link to Claude. The key stays in the main process, encrypted. */
   claudeStatus(): Promise<{ connected: boolean; encryption: boolean }>
   setClaudeKey(key: string): Promise<{ connected: boolean; error?: string }>

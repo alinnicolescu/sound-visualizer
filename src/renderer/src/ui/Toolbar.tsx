@@ -1,3 +1,5 @@
+import { MenuItem, MenuShell } from './Menu'
+import { LearnMenu } from './Tour'
 import { useEffect, useState } from 'react'
 import { useStore } from '../state/store'
 import { useViewSettings } from '../state/viewSettings'
@@ -26,7 +28,7 @@ export function Toolbar({ artNet }: { artNet: ArtNetStatus | null }) {
     <header className="toolbar">
       <div className="brand">Sound Visualizer</div>
       <div className="group">
-        <button className={leftTab === 'library' ? 'primary' : ''} onClick={() => setLeftTab(leftTab === 'library' ? 'fixtures' : 'library')} title="Browse the fixture library (Cmd+L)">
+        <button data-tour="add-fixtures" className={leftTab === 'library' ? 'primary' : ''} onClick={() => setLeftTab(leftTab === 'library' ? 'fixtures' : 'library')} title="Browse the fixture library (Cmd+L)">
           + Add fixtures
         </button>
         <button disabled={selection.length === 0} onClick={() => runCommand('duplicate')} title="Same patch, mirrors the original (Cmd+D)">
@@ -37,12 +39,12 @@ export function Toolbar({ artNet }: { artNet: ArtNetStatus | null }) {
         </button>
       </div>
       <div className="group">
-        <button className={builder ? 'primary' : ''} onClick={() => runCommand('builder')} title="Describe a show and have it built for you (Cmd+K)">
+        <button data-tour="build" className={builder ? 'primary' : ''} onClick={() => runCommand('builder')} title="Describe a show and have it built for you (Cmd+K)">
           ✦ Build show
         </button>
         <ShowsMenu />
       </div>
-      <div className="group">
+      <div className="group" data-tour="undo">
         <button disabled={!past.length} onClick={undo} title={past.at(-1) ? `Undo ${past.at(-1)!.label}` : 'Nothing to undo'}>
           Undo
         </button>
@@ -50,13 +52,14 @@ export function Toolbar({ artNet }: { artNet: ArtNetStatus | null }) {
           Redo
         </button>
       </div>
-      <label className="group haze">
+      <label className="group haze" data-tour="haze">
         Haze
         <input type="range" min={0} max={1} step={0.01} value={haze} onChange={(e) => setHaze(Number(e.target.value))} />
       </label>
       <div className="spacer" />
       <SoundSwitchIndicator />
       <ArtNetIndicator status={artNet} />
+      <LearnMenu />
       <SaveButton />
     </header>
   )
@@ -64,51 +67,48 @@ export function Toolbar({ artNet }: { artNet: ArtNetStatus | null }) {
 
 /** Templates, importing and exporting shows (also in the File menu). */
 function ShowsMenu() {
-  const [open, setOpen] = useState(false)
+  const [at, setAt] = useState<{ x: number; y: number } | null>(null)
+  const close = () => setAt(null)
   const run = (command: string) => () => {
-    setOpen(false)
+    close()
     runCommand(command)
   }
   return (
-    <div className="dropdown">
-      <button className={open ? 'on' : ''} onClick={() => setOpen(!open)} title="Start from a ready-made show, import or export">
+    <>
+      <button
+        data-tour="shows"
+        className={at ? 'on' : ''}
+        onClick={(e) => {
+          if (at) return close()
+          const r = e.currentTarget.getBoundingClientRect()
+          setAt({ x: r.left, y: r.bottom + 4 })
+        }}
+        title="Start from a ready-made show, import or export"
+      >
         Shows ▾
       </button>
-      {open && (
-        <>
-          <div className="menu-backdrop fixed" onPointerDown={() => setOpen(false)} />
-          <div className="dropdown-menu shows-menu">
-            <button className="menu-item" onClick={run('new')}>
-              <span className="menu-label">New show… (from SoundSwitch, scratch or the demo)</span>
-            </button>
-            <hr />
-            <div className="menu-title">Start from</div>
-            {TEMPLATES.map((t) => (
-              <button key={t.id} className="menu-item" title={t.description} onClick={run(`template:${t.id}`)}>
-                <span className="menu-label">{t.name}</span>
-              </button>
-            ))}
-            {window.api && (
-              <>
-                <hr />
-                <button className="menu-item" onClick={run('importShow')}>
-                  <span className="menu-label">Import show into this one…</span>
-                </button>
-                <button className="menu-item" onClick={run('openMvr')}>
-                  <span className="menu-label">Open MVR…</span>
-                </button>
-                <button className="menu-item" onClick={run('exportMvr')}>
-                  <span className="menu-label">Export MVR (Capture, grandMA3…)…</span>
-                </button>
-                <button className="menu-item" onClick={run('exportCsv')}>
-                  <span className="menu-label">Export patch list (CSV)…</span>
-                </button>
-              </>
-            )}
-          </div>
-        </>
+      {at && (
+        // Floats over the whole window: the toolbar would cut it off.
+        <MenuShell at={at} onClose={close}>
+          <MenuItem label="New show… (from SoundSwitch, scratch or the demo)" onClick={run('new')} />
+          <MenuItem label="Describe a show… (✦ Build show)" onClick={run('builder')} />
+          <hr />
+          <div className="menu-title">Start from</div>
+          {TEMPLATES.map((t) => (
+            <MenuItem key={t.id} label={t.name} title={t.description} onClick={run(`template:${t.id}`)} />
+          ))}
+          {window.api && (
+            <>
+              <hr />
+              <MenuItem label="Import show into this one…" onClick={run('importShow')} />
+              <MenuItem label="Open MVR…" onClick={run('openMvr')} />
+              <MenuItem label="Export MVR (Capture, grandMA3…)…" onClick={run('exportMvr')} />
+              <MenuItem label="Export patch list (CSV)…" onClick={run('exportCsv')} />
+            </>
+          )}
+        </MenuShell>
       )}
-    </div>
+    </>
   )
 }
 
@@ -120,7 +120,7 @@ function SaveButton() {
   if (!window.api) return null
   const edited = saved !== project
   return (
-    <button onClick={() => void saveDocument(false)} title={path ? `${path}${edited ? '\nUnsaved changes' : ''}` : 'Save this project to a file (Cmd+S)'}>
+    <button data-tour="save" onClick={() => void saveDocument(false)} title={path ? `${path}${edited ? '\nUnsaved changes' : ''}` : 'Save this project to a file (Cmd+S)'}>
       {edited ? '● ' : ''}Save
     </button>
   )
@@ -148,7 +148,11 @@ function ArtNetIndicator({ status }: { status: ArtNetStatus | null }) {
       : `Art-Net: listening on ${status.address}`
     tone = active ? 'good' : 'idle'
   }
-  return <div className={`status ${tone}`}>{text}</div>
+  return (
+    <div className={`status ${tone}`} data-tour="artnet">
+      {text}
+    </div>
+  )
 }
 
 /** Which SoundSwitch project we follow, with buttons to sync, re-find or pick one. */
@@ -164,7 +168,7 @@ function SoundSwitchIndicator() {
   if (status?.state === 'linked' && link && (!link.link || (link.profile && link.profile !== status.name))) {
     const other = link.link && link.profile
     return (
-      <div className="group">
+      <div className="group" data-tour="soundswitch">
         <div className="status off" title={other ? `This show follows the SoundSwitch project “${link.profile}”. SoundSwitch has “${status.name}” open, so nothing is synced.` : 'This show was made without SoundSwitch, so SoundSwitch patch changes are not brought in.'}>
           {other ? `Show follows “${link.profile}” · SoundSwitch has “${status.name}”` : `SoundSwitch: ${status.name} · not used by this show`}
         </div>
@@ -194,7 +198,7 @@ function SoundSwitchIndicator() {
     tone = 'bad'
   }
   return (
-    <div className="group">
+    <div className="group" data-tour="soundswitch">
       <div className={`status ${tone}`} title={title}>
         {text}
       </div>

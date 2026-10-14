@@ -9,6 +9,7 @@ import { deleteFixtures, deleteStructures, duplicateFixtures, duplicateStructure
 import { openDocument, saveDocument } from './document'
 import { view } from './viewBus'
 import { useWizards } from './wizards'
+import { useTour } from './tours'
 import { saveViewImage } from '../ui/ViewToolbar'
 import { exportCsv, exportMvr, importShowInto, openMvr, startFromTemplate } from './shows'
 
@@ -16,6 +17,7 @@ export function runCommand(command: string): void {
   const { undo, redo, select, selection, project } = useStore.getState()
   const settings = useViewSettings.getState()
   if (command.startsWith('template:')) return void startFromTemplate(command.slice('template:'.length))
+  if (command.startsWith('tour:')) return useTour.getState().start(command.slice('tour:'.length))
   switch (command) {
     case 'builder':
       settings.setFullView(false)
@@ -32,6 +34,10 @@ export function runCommand(command: string): void {
       return useWizards.getState().openNewShow()
     case 'welcome':
       return useWizards.getState().openWelcome()
+    case 'tours':
+      return useWizards.getState().setToursList(true)
+    case 'freshStart':
+      return useWizards.getState().askFreshStart()
     case 'open':
       return void openDocument()
     case 'save':

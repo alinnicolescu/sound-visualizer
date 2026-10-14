@@ -2,6 +2,9 @@
  * "Describe your show": type (or dictate) what you want, and the rig is built
  * for you, objects, fixtures, patch and all, as one undo step.
  *
+ * Two ways to build, chosen above the box: add to the show that's open, or
+ * start a new one (the scene is cleared first; Undo brings it all back).
+ *
  * With Claude connected (your Anthropic API key, kept encrypted by the app),
  * anything you describe works. Without it, the built-in reader handles the
  * common requests: "<count> <fixture> on <height> totems / FLEXstands / the
@@ -33,7 +36,11 @@ export function ShowBuilder() {
   const [keyDraft, setKeyDraft] = useState('')
   const [showKey, setShowKey] = useState(false)
   const [checking, setChecking] = useState(false)
+  const [mode, setMode] = useState<'add' | 'replace'>('add')
   const input = useRef<HTMLTextAreaElement>(null)
+  const fixtureCount = useStore((s) => s.project.fixtures.length)
+  const objectCount = useStore((s) => (s.project.structures ?? []).length)
+  const empty = fixtureCount + objectCount === 0
 
   useEffect(() => {
     if (!open) return
@@ -49,8 +56,17 @@ export function ShowBuilder() {
     const prompt = text.trim()
     if (!prompt || busy) return
     setBusy(true)
-    add({ kind: 'you', text: prompt })
+    const replacing = mode === 'replace' && !empty
+    add({ kind: 'you', text: replacing ? `New show: ${prompt}` : prompt })
+    // Starting over: clear the scene first, all inside one undo step with the build.
+    const outer = replacing ? useStore.getState().beginBatch() : null
+    if (replacing) {
+      // A show built from a description doesn't follow SoundSwitch (it would refill the rig).
+      useStore.getState().apply('Clear the scene', (p) => ({ ...p, fixtures: [], structures: [], soundswitch: { link: false } }))
+      useStore.getState().select([])
+    }
     const before = new Set([...useStore.getState().project.fixtures.map((f) => f.id), ...(useStore.getState().project.structures ?? []).map((s) => s.id)])
+    let built = false
     try {
       await useLibrary.getState().load()
       const { library, entries } = useLibrary.getState()
@@ -87,11 +103,22 @@ export function ShowBuilder() {
       const p = useStore.getState().project
       const fresh = [...p.fixtures.map((f) => f.id), ...(p.structures ?? []).map((s) => s.id)].filter((id) => !before.has(id))
       if (fresh.length) {
+        built = true
         useStore.getState().select(p.fixtures.filter((f) => fresh.includes(f.id)).map((f) => f.id))
         view.focus(fresh)
+        // Once there's a show, the next request adds to it unless you say otherwise.
+        setMode('add')
       }
       setText('')
     } finally {
+      if (outer) {
+        if (built) useStore.getState().endBatch(outer, `New show: ${prompt.slice(0, 40)}${prompt.length > 40 ? '…' : ''}`)
+        else {
+          // Nothing was built: put the old show back as it was.
+          useStore.setState({ project: outer.project, past: outer.past })
+          add({ kind: 'step', text: 'Your show was left as it was.' })
+        }
+      }
       setBusy(false)
     }
   }
@@ -110,7 +137,7 @@ export function ShowBuilder() {
   }
 
   return (
-    <div className="builder" onPointerDown={(e) => e.stopPropagation()} onKeyDown={(e) => e.stopPropagation()}>
+    <div className="builder" data-tour="builder" onPointerDown={(e) => e.stopPropagation()} onKeyDown={(e) => e.stopPropagation()}>
       <div className="builder-head">
         <strong>Describe your show</strong>
         <span className={`builder-mode ${claude?.connected ? 'on' : ''}`} title={claude?.connected ? 'Requests go to Claude (Anthropic API)' : 'The built-in reader: common requests only'}>
@@ -130,6 +157,20 @@ export function ShowBuilder() {
           {busy && <div className="builder-line step">Working…</div>}
         </div>
       )}
+      {!empty && (
+        <div className="builder-target" data-tour="builder-target" role="radiogroup" aria-label="Where to build">
+          <button role="radio" aria-checked={mode === 'add'} className={mode === 'add' ? 'on' : ''} onClick={() => setMode('add')}>
+            <strong>＋ Add to this show</strong>
+            <span>
+              Keeps the {fixtureCount} fixture{fixtureCount === 1 ? '' : 's'} and {objectCount} object{objectCount === 1 ? '' : 's'} already here
+            </span>
+          </button>
+          <button role="radio" aria-checked={mode === 'replace'} className={mode === 'replace' ? 'on replace' : ''} onClick={() => setMode('replace')}>
+            <strong>↺ Start a new show</strong>
+            <span>Clears the scene, then builds. Undo (⌘Z) brings it back</span>
+          </button>
+        </div>
+      )}
       <textarea
         ref={input}
         rows={3}
@@ -145,8 +186,8 @@ export function ShowBuilder() {
         }}
       />
       <div className="builder-actions">
-        <button className="primary" disabled={busy || !text.trim()} onClick={() => void build()}>
-          {busy ? 'Building…' : 'Build'}
+        <button className={`primary ${mode === 'replace' && !empty ? 'caution' : ''}`} disabled={busy || !text.trim()} onClick={() => void build()}>
+          {busy ? 'Building…' : mode === 'replace' && !empty ? 'Clear and build' : empty ? 'Build' : 'Add to show'}
         </button>
         <span className="hint">Enter to build · Shift+Enter for a new line · to talk, press Fn twice (Edit ▸ Start Dictation)</span>
       </div>

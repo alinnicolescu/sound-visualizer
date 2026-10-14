@@ -56,7 +56,7 @@ export function LibraryPanel() {
           </button>
         </div>
       </div>
-      <input className="filter" placeholder="Search maker, model or type…" value={query} onChange={(e) => setQuery(e.target.value)} autoFocus />
+      <input data-tour="library-search" className="filter" placeholder="Search maker, model or type…" value={query} onChange={(e) => setQuery(e.target.value)} autoFocus />
       <div className="chips">
         {CATEGORIES.map((c) => (
           <button key={c.id} className={`chip ${category === c.id ? 'on' : ''}`} onClick={() => setCategory(c.id)}>
@@ -65,7 +65,7 @@ export function LibraryPanel() {
         ))}
       </div>
 
-      <div className="library-list">
+      <div className="library-list" data-tour="library-list">
         {status === 'loading' && <p className="hint">Loading the library…</p>}
         {status === 'error' && <p className="problem">{error}</p>}
         {status === 'ready' && (

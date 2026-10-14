@@ -54,6 +54,7 @@ export function Faders() {
     <div className="faders">
       <div className="fader-actions">
         <button
+          data-tour="play-demo"
           className={demo ? 'active' : ''}
           disabled={!demo && fixtures.length === 0}
           title={

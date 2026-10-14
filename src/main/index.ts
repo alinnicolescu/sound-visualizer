@@ -13,6 +13,7 @@ import { importFixtureFiles, loadLibrary } from './library'
 import { openProject, readProject, saveImage, saveProject } from './files'
 import { buildMenu } from './menu'
 import { claudeRequest, claudeStatus, clearClaudeKey, setClaudeKey } from './claude'
+import { checkInstall, freshStart } from './install'
 import { openFile, saveFile } from './files'
 import { browseProfile, chooseSoundSwitchProject, excludeFixtures, listProfiles, readProfile, refreshSoundSwitch, startSoundSwitch, useProfile } from './soundswitch'
 import { createSocket, type Socket } from 'node:dgram'
@@ -129,6 +130,13 @@ listen('set-title', (_e, name: string, path: string | null, edited: boolean) => 
 // --- Fixture library -------------------------------------------------------------
 handle('library-load', () => loadLibrary())
 handle('library-import', () => importFixtureFiles(window))
+
+// --- First launch, reinstalls and starting fresh ---------------------------------------
+handle('install-info', () => checkInstall())
+handle('fresh-start', (_e, options: { claudeKey?: boolean; importedFixtures?: boolean }) => {
+  freshStart(options ?? {})
+  refreshSoundSwitch()
+})
 
 // --- Show builder: Claude ---------------------------------------------------------
 handle('claude-status', () => claudeStatus())

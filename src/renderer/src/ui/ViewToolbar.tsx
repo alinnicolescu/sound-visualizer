@@ -56,7 +56,7 @@ export function ViewToolbar() {
   return (
     <div className="view-toolbar">
       <ToolPicker />
-      <div className="seg">
+      <div className="seg" data-tour="views">
         {PRESETS.map(([id, label, key]) => (
           <button key={id} onClick={() => view.preset(id)} title={`${label} view (${key})`}>
             {label}
@@ -67,7 +67,7 @@ export function ViewToolbar() {
         Focus
       </button>
       <div className="dropdown">
-        <button onClick={() => setMenu(!menu)} className={menu ? 'on' : ''} title="Stored camera positions">
+        <button data-tour="cameras" onClick={() => setMenu(!menu)} className={menu ? 'on' : ''} title="Stored camera positions">
           Cameras ▾
         </button>
         {menu && (
@@ -90,10 +90,10 @@ export function ViewToolbar() {
         )}
       </div>
       <RoomMenu />
-      <button onClick={() => void saveViewImage()} title="Save the view as a PNG (Shift+Cmd+E)">
+      <button data-tour="image" onClick={() => void saveViewImage()} title="Save the view as a PNG (Shift+Cmd+E)">
         Image
       </button>
-      <button onClick={() => setFullView(!fullView)} className={fullView ? 'on' : ''} title="Hide the panels (Shift+Cmd+F)">
+      <button data-tour="fullview" onClick={() => setFullView(!fullView)} className={fullView ? 'on' : ''} title="Hide the panels (Shift+Cmd+F)">
         {fullView ? 'Panels' : 'Full view'}
       </button>
     </div>
@@ -116,7 +116,7 @@ function RoomMenu() {
   const [open, setOpen] = useState(false)
   return (
     <div className="dropdown">
-      <button onClick={() => setOpen(!open)} className={open ? 'on' : ''} title="Room light and ceiling">
+      <button data-tour="room" onClick={() => setOpen(!open)} className={open ? 'on' : ''} title="Room light and ceiling">
         Room ▾
       </button>
       {open && (
@@ -188,7 +188,7 @@ function ToolPicker() {
   const tool = useViewSettings((s) => s.tool)
   const setTool = useViewSettings((s) => s.setTool)
   return (
-    <div className="seg tools" title="Hold Space and drag to look around with any tool. Space+Shift pans, Space+Alt zooms, the wheel zooms.">
+    <div className="seg tools" data-tour="tools" title="Hold Space and drag to look around with any tool. Space+Shift pans, Space+Alt zooms, the wheel zooms.">
       {TOOLS.map(([id, label, key, hint]) => (
         <button key={id} className={tool === id ? 'on' : ''} onClick={() => setTool(id)} title={`${label} (${key}): ${hint}`}>
           {label}

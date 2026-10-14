@@ -361,7 +361,15 @@ button.mini.on { border-color: var(--accent); background: #1c2c48; }
 .builder textarea { width: 100%; resize: vertical; min-height: 54px; font: inherit; font-size: 13px; line-height: 1.4; padding: 8px 9px; border-radius: 8px; border: 1px solid var(--line); background: #0d1014; color: inherit; box-sizing: border-box; }
 .builder textarea:focus { outline: none; border-color: var(--accent); }
 .builder-actions { display: flex; align-items: center; gap: 10px; }
+.builder-target { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
+.builder-target button { display: flex; flex-direction: column; align-items: flex-start; gap: 2px; text-align: left; padding: 7px 9px; border-radius: 8px; border: 1px solid var(--line); background: #12161c; white-space: normal; }
+.builder-target button strong { font-size: 12.5px; }
+.builder-target button span { font-size: 11px; color: var(--muted); line-height: 1.3; }
+.builder-target button.on { border-color: var(--accent); background: #16243b; }
+.builder-target button.on.replace { border-color: #d08a3c; background: #2e2214; }
+button.primary.caution { background: #b36b22; border-color: #b36b22; }
 .builder-actions .hint { font-size: 11px; }
+.builder-actions button.primary { white-space: nowrap; }
 .builder-examples { display: flex; flex-direction: column; gap: 3px; }
 .builder-examples .mini { text-align: left; white-space: normal; line-height: 1.3; padding: 4px 8px; color: var(--muted); }
 .builder-examples .mini:hover { color: inherit; }
@@ -471,3 +479,42 @@ select.where { width: 100%; }
 .welcome-foot .dots button.on { background: var(--accent); }
 .pick-type input[type='checkbox'], .pick-line input[type='checkbox'], .pick-options input[type='checkbox'] { width: auto; flex: none; margin: 0; }
 .pick-name strong { font-size: 13px; }
+
+/* --- Guided tours --- */
+.tour-layer { position: fixed; inset: 0; z-index: 70; pointer-events: none; }
+.tour-block { position: fixed; inset: 0; pointer-events: auto; }
+.tour-dim { position: fixed; inset: 0; background: rgba(4, 6, 11, 0.62); }
+.tour-hole {
+  position: fixed; border-radius: 9px; pointer-events: none;
+  box-shadow: 0 0 0 9999px rgba(4, 6, 11, 0.62), 0 0 0 2px #5ea1ff, 0 0 18px 4px rgba(94, 161, 255, 0.55);
+  transition: left 0.25s ease, top 0.25s ease, width 0.25s ease, height 0.25s ease;
+  animation: tour-pulse 1.8s ease-in-out infinite;
+}
+@keyframes tour-pulse {
+  0%, 100% { box-shadow: 0 0 0 9999px rgba(4, 6, 11, 0.62), 0 0 0 2px #5ea1ff, 0 0 14px 2px rgba(94, 161, 255, 0.45); }
+  50% { box-shadow: 0 0 0 9999px rgba(4, 6, 11, 0.62), 0 0 0 2px #8fbcff, 0 0 26px 8px rgba(94, 161, 255, 0.6); }
+}
+.tour-card {
+  position: fixed; width: 320px; pointer-events: auto; padding: 14px 16px 12px;
+  background: var(--panel); border: 1px solid #3a5a8c; border-radius: 12px; box-shadow: 0 16px 40px rgba(0, 0, 0, 0.6);
+  transition: left 0.25s ease, top 0.25s ease;
+}
+.tour-card h3 { margin: 4px 0 6px; font-size: 15px; }
+.tour-card p { margin: 0 0 12px; font-size: 13px; line-height: 1.5; color: #cfd6e2; }
+.tour-count { font-size: 11px; color: var(--muted); }
+.tour-foot { display: flex; align-items: center; gap: 8px; }
+.tour-foot .spacer { flex: 1; }
+.tours-list { width: min(560px, 100%); padding: 18px 18px 0; }
+.tours-list h2 { margin: 0 0 4px; }
+.tours-list ul { list-style: none; margin: 12px 0; padding: 0; display: flex; flex-direction: column; gap: 8px; overflow: auto; }
+.tours-list li { display: flex; align-items: center; gap: 12px; padding: 10px 12px; border: 1px solid var(--line); border-radius: 10px; }
+.tours-list li > div { flex: 1; display: flex; flex-direction: column; gap: 2px; }
+.tours-list li span { font-size: 12px; color: var(--muted); }
+.tours-list .tour-done { color: #7fd28f; font-weight: normal; margin-left: 6px; }
+.tours-list .wizard-foot { margin: 0 -18px; }
+.small-dialog { width: min(500px, 100%); padding: 18px 20px 0; }
+.small-dialog h2 { margin: 0 0 8px; }
+.small-dialog p { line-height: 1.5; margin: 0 0 10px; }
+.small-dialog .wizard-foot { margin: 6px -20px 0; }
+.fresh-list { margin: 0 0 10px; padding-left: 18px; line-height: 1.5; font-size: 13px; }
+.fresh-options { display: flex; flex-direction: column; gap: 6px; margin: 4px 0 8px; font-size: 13px; }

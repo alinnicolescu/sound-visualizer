@@ -6,7 +6,7 @@
  * commands.ts, so there's one way to change anything. (Capture's UserAction.)
  */
 import { create } from 'zustand'
-import { defaultProject, type Project } from '../model/project'
+import { blankProject, type Project } from '../model/project'
 import { registerFixtureTypes } from '../model/fixtureTypes'
 import { settle } from '../model/physics'
 
@@ -53,9 +53,9 @@ function loadProject(): Project {
       return settle(project)
     }
   } catch {
-    // Storage can be unavailable or hold an old format; fall back to the default rig.
+    // Storage can be unavailable or hold an old format; start with an empty room.
   }
-  return defaultProject()
+  return settle(blankProject())
 }
 
 let lastStep = { label: '', at: 0 }

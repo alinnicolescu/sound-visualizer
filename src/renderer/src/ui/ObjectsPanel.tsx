@@ -67,8 +67,9 @@ export function ObjectsPanel() {
           Objects <span className="count">{structures.length}</span>
         </h2>
       </div>
-      <input className="filter" placeholder="Search objects: speaker, chair, truss…" value={query} onChange={(e) => setQuery(e.target.value)} />
+      <input data-tour="objects-search" className="filter" placeholder="Search objects: speaker, chair, truss…" value={query} onChange={(e) => setQuery(e.target.value)} />
       <p className="hint">Click to add, or drag into the view. Drag a fixture onto a stand or truss (Move tool, W) to attach it.</p>
+      <div data-tour="objects-presets">
       {byCategory.map(([category, presets]) => {
         const open = query.trim() !== '' || !folded.includes(category)
         return (
@@ -99,10 +100,11 @@ export function ObjectsPanel() {
           </div>
         )
       })}
+      </div>
       {byCategory.length === 0 && <p className="hint">Nothing matches “{query}”.</p>}
       <div className="set-cat">In this show</div>
       {structures.length === 0 && <p className="hint">Nothing yet: fixtures stand on the floor.</p>}
-      <ul className="set-list">
+      <ul className="set-list" data-tour="objects-list">
         {structures.map((s) => {
           const on = fixtures.filter((f) => f.mount?.structure === s.id).length
           return (
