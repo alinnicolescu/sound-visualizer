@@ -13,6 +13,7 @@ import { NewShow } from './ui/NewShow'
 import { Welcome } from './ui/Welcome'
 import { FreshStartConfirm, useFirstLaunch, WelcomeBack } from './ui/FreshStart'
 import { ToursDialog, TourOverlay } from './ui/Tour'
+import { Tooltips } from './ui/Tooltips'
 import { Inspector } from './ui/Inspector'
 import { DmxMap } from './ui/DmxMap'
 import { Faders } from './ui/Faders'
@@ -107,11 +108,12 @@ export function App() {
       <FreshStartConfirm />
       <ToursDialog />
       <TourOverlay />
+      <Tooltips />
       <Toolbar artNet={artNet} />
       {!fullView && (
         <aside className="panel left">
           <div className="tabs" data-tour="left-tabs">
-            <button data-tour="tab-fixtures" className={leftTab === 'fixtures' ? 'tab active' : 'tab'} onClick={() => setLeftTab('fixtures')}>
+            <button data-tour="tab-fixtures" className={leftTab === 'fixtures' ? 'tab active' : 'tab'} onClick={() => setLeftTab('fixtures')} title="The lights in this show, with their DMX patch (⌘1)">
               Fixtures
             </button>
             <button data-tour="tab-library" className={leftTab === 'library' ? 'tab active' : 'tab'} onClick={() => setLeftTab('library')} title="Browse and add fixtures (Cmd+L)">
@@ -139,7 +141,7 @@ export function App() {
       {!fullView && (
         <section className="panel bottom" data-tour="bottom">
           <div className="tabs">
-            <button data-tour="tab-faders" className={bottomTab === 'faders' ? 'tab active' : 'tab'} onClick={() => setBottomTab('faders')}>
+            <button data-tour="tab-faders" className={bottomTab === 'faders' ? 'tab active' : 'tab'} onClick={() => setBottomTab('faders')} title="Test faders for the selected fixture, and the demo">
               Faders
             </button>
             <button data-tour="tab-dmx" className={bottomTab === 'universe' ? 'tab active' : 'tab'} onClick={() => setBottomTab('universe')} title="Where every fixture sits across the DMX channels, like SoundSwitch's DMX map">

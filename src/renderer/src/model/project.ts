@@ -75,6 +75,8 @@ export interface Project {
   room?: RoomSettings
   /** Your own names for groups ("Uplights"); SoundSwitch only numbers them. */
   groupNames?: Record<number, string>
+  /** Patch clashes you chose to keep (model/patchCheck.ts). */
+  ignoredClashes?: string[]
   /** Objects: stage decks, truss, totems, tables... (model/structures.ts). */
   structures?: Structure[]
 }

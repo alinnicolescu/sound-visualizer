@@ -125,7 +125,7 @@ export function NewShow() {
     }
     useDocument.getState().setSaved(null, null)
     close(start === 'describe' ? 'build' : true)
-    setTimeout(() => view.focus('all'), 50)
+    setTimeout(() => view.home(), 50)
   }
 
   const back = () => setStep(steps[Math.max(0, at - 1)])

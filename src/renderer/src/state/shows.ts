@@ -59,7 +59,7 @@ export async function importShowInto(): Promise<void> {
       return r.project
     })
     notify('info', summary + (unknown.length ? ` Not in the library: ${unknown.join(', ')}.` : ''))
-    view.focus('all')
+    view.home()
   } catch (error) {
     notify('error', `Couldn't import ${file.name}: ${(error as Error).message}`)
   }
@@ -75,7 +75,7 @@ export async function openMvr(): Promise<void> {
     loadDocument(file.name, project)
     useDocument.getState().setSaved(null, null)
     notify('info', `Opened ${file.name}: ${project.fixtures.length} fixtures.${unknown.length ? ` Not in the library (shown as dimmers): ${unknown.join(', ')}.` : ''}`)
-    view.focus('all')
+    view.home()
   } catch (error) {
     notify('error', `Couldn't open ${file.name}: ${(error as Error).message}`)
   }
@@ -212,6 +212,6 @@ export async function startFromTemplate(id: string): Promise<void> {
   useDocument.getState().setSaved(null, null)
   if (problems.length) notify('error', `Some steps didn't work: ${problems.join('; ')}`)
   else notify('info', `Started from "${t.name}". Undo puts your previous show back.`)
-  view.focus('all')
+  view.home()
 }
 

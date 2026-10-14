@@ -70,7 +70,7 @@ export function DmxMap() {
   }, [fixtures, universe])
 
   const used = owners.filter((o) => o.length).length
-  const crossPatched = owners.filter((o) => o.length > 1).length
+  const crossPatched = owners.filter(clashes).length
   const count = fixtures.filter((f) => f.universe === universe).length
 
   useEffect(() => {
@@ -113,8 +113,8 @@ export function DmxMap() {
           ctx.fillRect(x + left, y + 1.5, cw - left - right, ch - 3)
           ctx.globalAlpha = 1
         }
-        if (own.length > 1) {
-          // Cross-patch: yellow, like SoundSwitch.
+        if (clashes(own)) {
+          // Cross-patch: yellow, like SoundSwitch. (Copies on one patch mirror on purpose: not marked.)
           ctx.fillStyle = 'rgba(240, 200, 40, 0.55)'
           ctx.fillRect(x + 1, y + 1, cw - 2, ch - 2)
         }
@@ -198,7 +198,7 @@ export function DmxMap() {
     ? hovered
       ? `Ch ${hover.channel} · ${hovered.fixture.name} (${hovered.fixture.address}–${hovered.fixture.address + footprint(hovered.fixture) - 1}) · ${
           FUNCTION_LABEL[getFixtureType(hovered.fixture.typeId).channels[hovered.index]] ?? 'Channel'
-        } · ${plainName(getFixtureType(hovered.fixture.typeId).name)}${hover.owners.length > 1 ? ` · also ${hover.owners.slice(1).map((o) => o.fixture.name).join(', ')}: cross-patched` : ''}`
+        } · ${plainName(getFixtureType(hovered.fixture.typeId).name)}${hover.owners.length > 1 ? ` · also ${hover.owners.slice(1).map((o) => o.fixture.name).join(', ')}${clashes(hover.owners) ? ': cross-patched' : ' (copies, mirroring it)'}` : ''}`
       : `Ch ${hover.channel} · free`
     : null
 
@@ -249,4 +249,9 @@ export function DmxMap() {
       />
     </div>
   )
+}
+
+/** Two different things on one channel. Copies (same type, same start address) mirror on purpose. */
+function clashes(own: Owner[]): boolean {
+  return new Set(own.map((o) => `${o.fixture.address}.${o.fixture.typeId}`)).size > 1
 }

@@ -7,11 +7,14 @@ import { useStore } from '../state/store'
 import { orientFixtures, updateFixtures } from '../state/commands'
 import { notify } from '../state/notices'
 import { FIXTURE_PROPERTIES, type PropertyDescriptor } from '../state/properties'
-import { findOverlaps, fitsInUniverse, footprint, type Fixture } from '../model/project'
+import { footprint, type Fixture } from '../model/project'
+import { mirrorsOf } from '../model/patchCheck'
+import { SelectionProblems } from './PatchProblems'
 import { getFixtureType } from '../model/fixtureTypes'
 import { ArrangePanel } from './ArrangePanel'
 import { ArrangeButtons } from './ArrangeMenu'
 import { FixtureMount, StructureInspector } from './StructureActions'
+import { Section } from './Section'
 
 export function Inspector() {
   const fixtures = useStore((s) => s.project.fixtures)
@@ -30,33 +33,28 @@ export function Inspector() {
     )
   }
 
-  const clashes = findOverlaps(fixtures).filter(([a, b]) => selection.includes(a.id) || selection.includes(b.id))
-  const overflow = selected.filter((f) => !fitsInUniverse(f))
+  const mirrors = selected.length === 1 ? mirrorsOf(fixtures, selected[0]) : []
 
   return (
     <div className="inspector">
       <h2>{selected.length === 1 ? selected[0].name : `${selected.length} fixtures`}</h2>
       {pieces.length > 0 && <p className="hint">Also selected: {pieces.length === 1 ? pieces[0].name : `${pieces.length} objects`}. Moving and lining up takes them all.</p>}
-      {clashes.map(([a, b]) => (
-        <p key={a.id + b.id} className="problem">
-          {a.name} and {b.name} share channels in universe {a.universe + 1}.
+      <SelectionProblems ids={selected.map((f) => f.id)} />
+      {mirrors.length > 0 && (
+        <p className="mirror-note" title="Fixtures of the same type on the same address get the same DMX, so they move together: that's how copies work">
+          Mirrors {mirrors.length === 1 ? mirrors[0].name : `${mirrors.length} copies`} on the same patch.{' '}
+          <a onClick={() => useStore.getState().select([selected[0].id, ...mirrors.map((m) => m.id)])}>Select {mirrors.length === 1 ? 'both' : 'them all'}</a>
         </p>
-      ))}
-      {overflow.map((f) => (
-        <p key={f.id} className="problem">
-          {f.name} runs past channel 512.
-        </p>
-      ))}
+      )}
       {selected.length === 1 && <TypeInfo fixture={selected[0]} />}
       <FixtureMount fixtures={selected} />
       <ArrangeButtons ids={selection} />
       {FIXTURE_PROPERTIES.map(({ section, properties }) => (
-        <fieldset key={section}>
-          <legend>{section}</legend>
+        <Section key={section} id={`fixture:${section}`} title={section}>
           {properties.map((p) => (
             <Field key={p.key} property={p} fixtures={selected} />
           ))}
-        </fieldset>
+        </Section>
       ))}
       <ArrangePanel ids={selection} />
     </div>
@@ -87,7 +85,7 @@ function Field({ property, fixtures }: { property: PropertyDescriptor; fixtures:
   }
 
   return (
-    <label className="field">
+    <label className="field" title={property.hint}>
       <span className="label">
         {property.label}
         {property.kind === 'number' && property.unit ? ` (${property.unit})` : ''}

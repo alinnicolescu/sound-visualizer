@@ -12,39 +12,113 @@ import { useStore } from '../state/store'
 import { useMix } from '../state/mix'
 import { useFixtureMenu } from '../state/fixtureMenu'
 import { renameGroup, updateFixtures } from '../state/commands'
-import { findOverlaps, fitsInUniverse, footprint, type Fixture } from '../model/project'
+import { footprint, type Fixture } from '../model/project'
+import { ProblemsBanner, useProblemIndex } from './PatchProblems'
 import { getFixtureType, plainName } from '../model/fixtureTypes'
+
+type GroupBy = 'type' | 'group' | 'patch' | 'none'
+const GROUP_BY: Array<[GroupBy, string, string]> = [
+  ['type', 'Type', 'One group per kind of fixture: copies land together'],
+  ['group', 'SoundSwitch group', "SoundSwitch's fixture groups (double-click a group's name to rename it)"],
+  ['patch', 'Patch', 'Fixtures sharing a DMX address together: copies that mirror each other'],
+  ['none', 'No groups', 'One plain list']
+]
+const VIEW_KEY = 'sound-visualizer:fixture-list'
+
+interface ListView {
+  groupBy: GroupBy
+  /** Folded groups, as "<groupBy>:<key>". */
+  folded: string[]
+  problemsOpen: boolean
+}
+
+function loadView(): ListView {
+  try {
+    return { groupBy: 'type', folded: [], problemsOpen: true, ...JSON.parse(localStorage.getItem(VIEW_KEY) ?? '{}') }
+  } catch {
+    return { groupBy: 'type', folded: [], problemsOpen: true }
+  }
+}
+
+interface Section {
+  key: string
+  title: string
+  sub: string
+  fixtures: Fixture[]
+  /** SoundSwitch group number, so the header can rename it. */
+  group?: number
+}
 
 export function FixtureList() {
   const fixtures = useStore((s) => s.project.fixtures)
+  const names = useStore((s) => s.project.groupNames)
   const selection = useStore((s) => s.selection)
   const select = useStore((s) => s.select)
   const mix = useMix()
   const [filter, setFilter] = useState('')
-  // null = every fixture; 0 = fixtures in no group; n = SoundSwitch group n.
-  const [group, setGroup] = useState<number | null>(null)
+  const [listView, setListView] = useState<ListView>(loadView)
+  const [renaming, setRenaming] = useState<number | null>(null)
   const anchor = useRef<string | null>(null)
+  const problems = useProblemIndex()
 
-  const problems = useMemo(() => {
-    const ids = new Set<string>()
-    for (const [a, b] of findOverlaps(fixtures)) {
-      // Same type at the same address is a deliberate copy (it mirrors), not a clash.
-      if (a.address === b.address && a.typeId === b.typeId) continue
-      ids.add(a.id).add(b.id)
+  const update = (change: Partial<ListView>) => {
+    const next = { ...listView, ...change }
+    setListView(next)
+    try {
+      localStorage.setItem(VIEW_KEY, JSON.stringify(next))
+    } catch {
+      // Not remembered.
     }
-    for (const f of fixtures) if (!fitsInUniverse(f)) ids.add(f.id)
-    return ids
-  }, [fixtures])
+  }
 
-  const shown = fixtures
-    .filter((f) => group === null || (f.group ?? 0) === group)
-    .filter((f) => !filter || `${f.name} ${getFixtureType(f.typeId).name}`.toLowerCase().includes(filter.toLowerCase()))
+  const shown = fixtures.filter((f) => !filter || `${f.name} ${getFixtureType(f.typeId).name}`.toLowerCase().includes(filter.toLowerCase()))
+  const groupLabel = (g: number) => (g === 0 ? 'No group' : names?.[g] ?? `Group ${g}`)
+
+  const sections = useMemo((): Section[] => {
+    const by = listView.groupBy
+    if (by === 'none') return [{ key: 'all', title: '', sub: '', fixtures: shown }]
+    const map = new Map<string, Section>()
+    for (const f of shown) {
+      let key: string
+      let title: string
+      let sub = ''
+      let group: number | undefined
+      if (by === 'type') {
+        key = f.typeId
+        title = shortType(f)
+        sub = `${footprint(f)} ch`
+      } else if (by === 'group') {
+        group = f.group ?? 0
+        key = String(group)
+        title = groupLabel(group)
+      } else {
+        key = `${f.universe}.${f.address}.${f.typeId}`
+        title = `${f.universe + 1}.${f.address}`
+        sub = shortType(f)
+      }
+      const section = map.get(key) ?? { key, title, sub, fixtures: [], group }
+      section.fixtures.push(f)
+      map.set(key, section)
+    }
+    const list = [...map.values()]
+    if (by === 'group') list.sort((a, b) => ((a.group || 999) - (b.group || 999)))
+    if (by === 'patch') list.sort((a, b) => a.fixtures[0].universe - b.fixtures[0].universe || a.fixtures[0].address - b.fixtures[0].address)
+    if (by === 'group') for (const s of list) s.sub = groupSummary(s.fixtures)
+    return list
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [shown.map((f) => f.id + f.typeId + f.group + f.universe + f.address + f.name).join(), listView.groupBy, names])
+
+  const isFolded = (key: string) => listView.folded.includes(`${listView.groupBy}:${key}`)
+  const fold = (key: string) => {
+    const k = `${listView.groupBy}:${key}`
+    update({ folded: listView.folded.includes(k) ? listView.folded.filter((x) => x !== k) : [...listView.folded, k] })
+  }
+  const visibleOrder = sections.flatMap((s) => (isFolded(s.key) ? [] : s.fixtures)).map((f) => f.id)
 
   const onRowClick = (id: string, e: React.MouseEvent) => {
-    if (e.shiftKey && anchor.current) {
-      const ids = shown.map((f) => f.id)
-      const [a, b] = [ids.indexOf(anchor.current), ids.indexOf(id)].sort((x, y) => x - y)
-      select(ids.slice(a, b + 1))
+    if (e.shiftKey && anchor.current && visibleOrder.includes(anchor.current)) {
+      const [a, b] = [visibleOrder.indexOf(anchor.current), visibleOrder.indexOf(id)].sort((x, y) => x - y)
+      select(visibleOrder.slice(a, b + 1))
     } else if (e.metaKey || e.ctrlKey) {
       select(selection.includes(id) ? selection.filter((s) => s !== id) : [...selection, id])
       anchor.current = id
@@ -56,6 +130,7 @@ export function FixtureList() {
 
   /** The fixtures a row's button acts on: the whole selection if the row is part of it. */
   const targets = (id: string) => (selection.includes(id) && selection.length > 1 ? selection : [id])
+  const grouped = listView.groupBy !== 'none'
 
   return (
     <div className="fixture-list">
@@ -64,84 +139,175 @@ export function FixtureList() {
           Fixtures <span className="count">{fixtures.length}</span>
         </h2>
         <div className="list-tools">
-          <button className="mini" onClick={() => select(shown.map((f) => f.id))} title="Select all (Cmd+A)">
+          <button className="mini" onClick={() => select(shown.map((f) => f.id))} title="Select every fixture in the list (⌘A)">
             All
           </button>
           {mix.solo.length > 0 && (
-            <button className="mini on-solo" onClick={() => mix.clear('solo')} title="Stop soloing">
+            <button className="mini on-solo" onClick={() => mix.clear('solo')} title="Stop soloing: every fixture acts again">
               Unsolo
             </button>
           )}
           {mix.muted.length > 0 && (
-            <button className="mini on-mute" onClick={() => mix.clear('muted')} title="Unmute everything">
+            <button className="mini on-mute" onClick={() => mix.clear('muted')} title="Unmute every fixture">
               Unmute
             </button>
           )}
           {mix.hidden.length > 0 && (
-            <button className="mini" onClick={() => mix.clear('hidden')} title="Show hidden fixtures">
+            <button className="mini" onClick={() => mix.clear('hidden')} title="Show the fixtures you hid">
               Show all
             </button>
           )}
         </div>
       </div>
-      <GroupBar group={group} setGroup={setGroup} />
-      <input data-tour="fixture-filter" className="filter" placeholder="Filter fixtures…" value={filter} onChange={(e) => setFilter(e.target.value)} />
+      <ProblemsBanner open={listView.problemsOpen} setOpen={(problemsOpen) => update({ problemsOpen })} />
+      <div className="list-controls">
+        <input data-tour="fixture-filter" className="filter" placeholder="Filter fixtures…" value={filter} onChange={(e) => setFilter(e.target.value)} title="Show only fixtures whose name or type contains this" />
+        <select value={listView.groupBy} onChange={(e) => update({ groupBy: e.target.value as GroupBy })} title="How to group the list" aria-label="Group by">
+          {GROUP_BY.map(([id, label, tip]) => (
+            <option key={id} value={id} title={tip}>
+              {id === 'none' ? label : `By ${label.toLowerCase()}`}
+            </option>
+          ))}
+        </select>
+        {grouped && sections.length > 1 && (
+          <button
+            className="mini"
+            title={sections.every((s) => isFolded(s.key)) ? 'Open every group' : 'Fold every group'}
+            onClick={() =>
+              update({
+                folded: sections.every((s) => isFolded(s.key))
+                  ? listView.folded.filter((k) => !k.startsWith(`${listView.groupBy}:`))
+                  : [...new Set([...listView.folded, ...sections.map((s) => `${listView.groupBy}:${s.key}`)])]
+              })
+            }
+          >
+            {sections.every((s) => isFolded(s.key)) ? '▸▸' : '▾▾'}
+          </button>
+        )}
+      </div>
       <table>
         <thead>
           <tr>
-            <th className="toggles" />
+            <th className="toggles" title="M mute · S solo · ● show or hide" />
             <th>Name</th>
-            <th>Patch</th>
+            <th title="Universe.address, numbered like SoundSwitch">Patch</th>
           </tr>
         </thead>
-        <tbody>
-          {shown.map((f) => {
-            const muted = mix.muted.includes(f.id)
-            const solo = mix.solo.includes(f.id)
-            const hidden = mix.hidden.includes(f.id)
-            const live = mix.isLive(f.id)
-            return (
-              <tr
-                key={f.id}
-                className={[selection.includes(f.id) ? 'selected' : '', live ? '' : 'dead', hidden ? 'hidden-row' : ''].join(' ')}
-                onClick={(e) => onRowClick(f.id, e)}
-                onContextMenu={(e) => {
-                  // The same actions as right-clicking the fixture in the 3D view.
-                  e.preventDefault()
-                  if (!selection.includes(f.id)) select([f.id])
-                  useFixtureMenu.getState().open(e.clientX, e.clientY)
-                }}
-              >
-                <td className="toggles" onClick={(e) => e.stopPropagation()}>
-                  <button className={`tog ${muted ? 'on-mute' : ''}`} title="Mute (M)" onClick={() => mix.toggle('muted', targets(f.id))}>
-                    M
-                  </button>
-                  <button className={`tog ${solo ? 'on-solo' : ''}`} title="Solo (S)" onClick={() => mix.toggle('solo', targets(f.id))}>
-                    S
-                  </button>
-                  <button className={`tog ${hidden ? 'on-hide' : ''}`} title="Hide (H)" onClick={() => mix.toggle('hidden', targets(f.id))}>
-                    {hidden ? '◌' : '●'}
-                  </button>
-                </td>
-                <td>
-                  {problems.has(f.id) && <span className="warn" title="Patch clash or past channel 512">!</span>}
-                  <InlineEdit value={f.name} onCommit={(v) => rename(f, v, targets(f.id))} />
-                  <div className="sub">
-                    {f.group ? <span className="group-tag">G{f.group}</span> : null}
-                    {shortType(f)}
-                  </div>
-                </td>
-                <td className="mono">
-                  <InlineEdit value={`${f.universe + 1}.${f.address}`} onCommit={(v) => repatch(f, v, targets(f.id))} />
-                  <div className="sub">{footprint(f)} ch</div>
-                </td>
-              </tr>
-            )
-          })}
-        </tbody>
+        {sections.map((section) => {
+          const ids = section.fixtures.map((f) => f.id)
+          const folded = grouped && isFolded(section.key)
+          const allSelected = ids.every((id) => selection.includes(id))
+          const state = (key: 'muted' | 'solo' | 'hidden') => ids.every((id) => mix[key].includes(id))
+          const issue = section.fixtures.some((f) => problems.has(f.id))
+          return (
+            <tbody key={section.key} className={grouped ? 'section' : ''}>
+              {grouped && (
+                <tr className={`section-head ${allSelected ? 'selected' : ''}`} onContextMenu={(e) => (e.preventDefault(), select(ids), useFixtureMenu.getState().open(e.clientX, e.clientY))}>
+                  <td colSpan={3}>
+                    <div className="section-row">
+                      <button className="fold" onClick={() => fold(section.key)} title={folded ? 'Show the fixtures in this group' : 'Fold this group away'} aria-expanded={!folded}>
+                        {folded ? '▸' : '▾'}
+                      </button>
+                      {renaming !== null && renaming === section.group ? (
+                        <input
+                          className="chip-input"
+                          autoFocus
+                          defaultValue={section.title}
+                          onBlur={(e) => {
+                            renameGroup(section.group!, e.target.value === `Group ${section.group}` ? '' : e.target.value)
+                            setRenaming(null)
+                          }}
+                          onKeyDown={(e) => {
+                            if (e.key === 'Enter') (e.target as HTMLInputElement).blur()
+                            if (e.key === 'Escape') setRenaming(null)
+                          }}
+                        />
+                      ) : (
+                        <button
+                          className="section-title"
+                          title={`Select all ${ids.length} to edit them together${section.group ? '. Double-click to rename the group' : ''}`}
+                          onClick={(e) => (e.metaKey || e.ctrlKey ? select([...new Set([...selection, ...ids])]) : select(ids))}
+                          onDoubleClick={() => section.group && setRenaming(section.group)}
+                        >
+                          {issue && <span className="problem-dot" title="A patch problem: see the list above">!</span>}
+                          <span className="section-name">{section.title}</span>
+                          <span className="count">{ids.length}</span>
+                          {section.sub && <span className="section-sub">{section.sub}</span>}
+                        </button>
+                      )}
+                      <span className="section-tools">
+                        <button className={`tog ${state('muted') ? 'on-mute' : ''}`} title="Mute the whole group" onClick={() => mix.toggle('muted', ids)}>
+                          M
+                        </button>
+                        <button className={`tog ${state('solo') ? 'on-solo' : ''}`} title="Solo the whole group: only it acts" onClick={() => mix.toggle('solo', ids)}>
+                          S
+                        </button>
+                        <button className={`tog ${state('hidden') ? 'on-hide' : ''}`} title="Hide or show the whole group" onClick={() => mix.toggle('hidden', ids)}>
+                          {state('hidden') ? '◌' : '●'}
+                        </button>
+                      </span>
+                    </div>
+                  </td>
+                </tr>
+              )}
+              {!folded &&
+                section.fixtures.map((f) => {
+                  const muted = mix.muted.includes(f.id)
+                  const solo = mix.solo.includes(f.id)
+                  const hidden = mix.hidden.includes(f.id)
+                  const live = mix.isLive(f.id)
+                  const issueText = problems.get(f.id)
+                  return (
+                    <tr
+                      key={f.id}
+                      className={[selection.includes(f.id) ? 'selected' : '', live ? '' : 'dead', hidden ? 'hidden-row' : '', grouped ? 'in-section' : ''].join(' ')}
+                      onClick={(e) => onRowClick(f.id, e)}
+                      onContextMenu={(e) => {
+                        // The same actions as right-clicking the fixture in the 3D view.
+                        e.preventDefault()
+                        if (!selection.includes(f.id)) select([f.id])
+                        useFixtureMenu.getState().open(e.clientX, e.clientY)
+                      }}
+                    >
+                      <td className="toggles" onClick={(e) => e.stopPropagation()}>
+                        <button className={`tog ${muted ? 'on-mute' : ''}`} title="Mute (M): it stops responding" onClick={() => mix.toggle('muted', targets(f.id))}>
+                          M
+                        </button>
+                        <button className={`tog ${solo ? 'on-solo' : ''}`} title="Solo (S): only soloed fixtures respond" onClick={() => mix.toggle('solo', targets(f.id))}>
+                          S
+                        </button>
+                        <button className={`tog ${hidden ? 'on-hide' : ''}`} title="Hide or show it in the 3D view (H)" onClick={() => mix.toggle('hidden', targets(f.id))}>
+                          {hidden ? '◌' : '●'}
+                        </button>
+                      </td>
+                      <td>
+                        {issueText && (
+                          <span className="problem-dot" title={`${issueText}\nSee the patch problems at the top of the list to fix it.`}>
+                            !
+                          </span>
+                        )}
+                        <InlineEdit value={f.name} onCommit={(v) => rename(f, v, targets(f.id))} />
+                        {listView.groupBy !== 'type' && (
+                          <div className="sub">
+                            {f.group && listView.groupBy !== 'group' ? <span className="group-tag">G{f.group}</span> : null}
+                            {shortType(f)}
+                          </div>
+                        )}
+                      </td>
+                      <td className="mono">
+                        <InlineEdit value={`${f.universe + 1}.${f.address}`} onCommit={(v) => repatch(f, v, targets(f.id))} />
+                        {listView.groupBy !== 'type' && <div className="sub">{footprint(f)} ch</div>}
+                      </td>
+                    </tr>
+                  )
+                })}
+            </tbody>
+          )
+        })}
       </table>
+      {fixtures.length > 0 && shown.length === 0 && <p className="hint">No fixture matches “{filter}”.</p>}
       <p className="hint">
-        Shift-click a range, Cmd-click to add, right-click for actions. Double-click a name or patch to edit; with several selected, edits apply to all. Keys: M mute, S solo, H hide, Cmd+D duplicate.
+        Click a group's name to select it all and edit it together. Shift-click a range, Cmd-click to add, right-click for actions. Double-click a name or patch to edit it.
       </p>
     </div>
   )
@@ -234,81 +400,4 @@ function groupSummary(list: Fixture[]): string {
     .slice(0, 2)
     .map(([n, c]) => (c > 1 ? `${n} ×${c}` : n))
     .join(', ')
-}
-
-/**
- * SoundSwitch's fixture groups: pick one to see only its fixtures, then mute,
- * solo, hide or select the whole group. Double-click a group to name it.
- */
-function GroupBar({ group, setGroup }: { group: number | null; setGroup: (g: number | null) => void }) {
-  const fixtures = useStore((s) => s.project.fixtures)
-  const names = useStore((s) => s.project.groupNames)
-  const select = useStore((s) => s.select)
-  const mix = useMix()
-  const [renaming, setRenaming] = useState<number | null>(null)
-  const numbers = [...new Set(fixtures.map((f) => f.group ?? 0))].sort((a, b) => (a || 99) - (b || 99))
-  if (numbers.length <= 1 && numbers[0] === 0) return null
-  const label = (g: number) => (g === 0 ? 'No group' : names?.[g] ?? `Group ${g}`)
-  const members = group === null ? [] : fixtures.filter((f) => (f.group ?? 0) === group).map((f) => f.id)
-  const state = (key: 'muted' | 'solo' | 'hidden') => members.length > 0 && members.every((id) => mix[key].includes(id))
-
-  return (
-    <div className="group-bar">
-      <div className="chips">
-        <button className={`chip ${group === null ? 'on' : ''}`} onClick={() => setGroup(null)}>
-          All
-        </button>
-        {numbers.map((g) => {
-          const list = fixtures.filter((f) => (f.group ?? 0) === g)
-          if (renaming === g) {
-            return (
-              <input
-                key={g}
-                className="chip-input"
-                autoFocus
-                defaultValue={label(g)}
-                onBlur={(e) => {
-                  renameGroup(g, e.target.value === `Group ${g}` ? '' : e.target.value)
-                  setRenaming(null)
-                }}
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter') (e.target as HTMLInputElement).blur()
-                  if (e.key === 'Escape') setRenaming(null)
-                }}
-              />
-            )
-          }
-          return (
-            <button
-              key={g}
-              className={`chip ${group === g ? 'on' : ''}`}
-              onClick={() => setGroup(group === g ? null : g)}
-              onDoubleClick={() => g && setRenaming(g)}
-              title={`${label(g)}: ${groupSummary(list)}${g ? '\nDouble-click to name it' : ''}`}
-            >
-              {label(g)}
-              <span className="chip-count">{list.length}</span>
-            </button>
-          )
-        })}
-      </div>
-      {group !== null && members.length > 0 && (
-        <div className="group-actions">
-          <span className="hint">{groupSummary(fixtures.filter((f) => members.includes(f.id)))}</span>
-          <button className="mini" onClick={() => select(members)} title="Select every fixture in this group">
-            Select
-          </button>
-          <button className={`mini ${state('muted') ? 'on-mute' : ''}`} onClick={() => mix.toggle('muted', members)} title="Mute the group">
-            M
-          </button>
-          <button className={`mini ${state('solo') ? 'on-solo' : ''}`} onClick={() => mix.toggle('solo', members)} title="Solo the group: only it acts">
-            S
-          </button>
-          <button className={`mini ${state('hidden') ? 'on' : ''}`} onClick={() => mix.toggle('hidden', members)} title="Hide the group">
-            Hide
-          </button>
-        </div>
-      )}
-    </div>
-  )
 }

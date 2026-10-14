@@ -10,6 +10,7 @@ import { useStore } from './store'
 import { registerFixtureTypes } from '../model/fixtureTypes'
 import { defaultProject, type Project } from '../model/project'
 import { notify } from './notices'
+import { view } from './viewBus'
 
 const PATH_KEY = 'soundswitch-visualizer:path'
 
@@ -77,6 +78,8 @@ export function loadDocument(path: string, project: Project): void {
   useStore.getState().apply(`Open ${path.split('/').pop()}`, () => project)
   useStore.getState().select([])
   useDocument.getState().setSaved(path, useStore.getState().project)
+  // A different show: start from the usual view of it.
+  setTimeout(() => view.home(), 30)
 }
 
 export async function openDocument(): Promise<void> {

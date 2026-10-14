@@ -74,8 +74,9 @@ export function Faders() {
         >
           {demo ? '■ Stop demo' : '▶ Play demo'}
         </button>
-        <button onClick={() => setAll('dimmer', 255)}>All on</button>
+        <button onClick={() => setAll('dimmer', 255)} title="Every fixture's dimmer to full, to check the rig">All on</button>
         <button
+          title="Everything off: stops the demo and resets the test faders (heads point down)"
           onClick={() => {
             setDemo(false)
             dmxBus.clearFaders()

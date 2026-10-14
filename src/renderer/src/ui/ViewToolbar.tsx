@@ -83,7 +83,7 @@ export function ViewToolbar() {
                 </button>
               </div>
             ))}
-            <button className="primary small" onClick={store}>
+            <button className="primary small" onClick={store} title="Remember this camera position; it's saved with the show">
               Store current view
             </button>
           </div>
@@ -144,7 +144,7 @@ function RoomMenu() {
           </div>
           <div className="chips">
             {ROOM_PRESETS.map((p) => (
-              <button key={p.name} className="chip" onClick={() => updateRoom({ ambient: p.ambient, ambientColor: p.color }, `Room: ${p.name}`)}>
+              <button key={p.name} className="chip" title={`Room light like a ${p.name.toLowerCase()}`} onClick={() => updateRoom({ ambient: p.ambient, ambientColor: p.color }, `Room: ${p.name}`)}>
                 {p.name}
               </button>
             ))}

@@ -25,6 +25,7 @@ import { view } from '../state/viewBus'
 import { Icon } from './ObjectsPanel'
 import { MenuItem, MenuShell } from './Menu'
 import { ArrangeButtons, ArrangeMenu } from './ArrangeMenu'
+import { Section } from './Section'
 
 function useChosenStructures(): Structure[] {
   const structures = useStore((s) => s.project.structures)
@@ -190,15 +191,13 @@ export function StructureInspector({ chosen }: { chosen: Structure[] }) {
       <p className="hint">{info.description}</p>
       {chosen.length === 1 && <NameField structure={first} />}
       {sameKind && (
-        <fieldset>
-          <legend>Size</legend>
+        <Section id="object:size" title="Size and options">
           {info.fields.map((field) => (
             <ParamInput key={field.key} field={field} chosen={chosen} />
           ))}
-        </fieldset>
+        </Section>
       )}
-      <fieldset>
-        <legend>Place</legend>
+      <Section id="object:place" title="Place">
         <NumberField label="Left-right (ft)" value={chosen.length === 1 ? ft(first.position[0]) : null} onCommit={(v) => updateStructures(ids, 'Move object', (s) => ({ ...s, position: [v * FT, s.position[1], s.position[2]] }))} />
         <NumberField label="Front-back (ft)" value={chosen.length === 1 ? ft(first.position[2]) : null} onCommit={(v) => updateStructures(ids, 'Move object', (s) => ({ ...s, position: [s.position[0], s.position[1], v * FT] }))} />
         <NumberField label="Turn (°)" value={chosen.every((s) => s.rotation === first.rotation) ? first.rotation : null} onCommit={(v) => updateStructures(ids, 'Turn object', (s) => ({ ...s, rotation: v }))} />
@@ -206,13 +205,12 @@ export function StructureInspector({ chosen }: { chosen: Structure[] }) {
           <span className="label">Stands on</span>
           <span className="sub">{first.position[1] > 0.001 ? `something ${ft(first.position[1])} ft up (a stage or table)` : 'the floor'}</span>
         </div>
-      </fieldset>
+      </Section>
       <ArrangeButtons ids={ids} />
       {fit.raised && <p className="hint">The ceiling has been raised to {ft(fit.ceiling)} ft so everything fits.</p>}
       {chosen.length === 1 && <MountList structure={first} />}
       {attached.length > 0 && (
-        <fieldset>
-          <legend>On it</legend>
+        <Section id="object:on-it" title="On it">
           <ul className="set-list compact">
             {attached.map((f) => (
               <li key={f.id} onClick={() => useStore.getState().select([f.id])}>
@@ -221,12 +219,12 @@ export function StructureInspector({ chosen }: { chosen: Structure[] }) {
               </li>
             ))}
           </ul>
-        </fieldset>
+        </Section>
       )}
       <div className="row-buttons">
-        <button onClick={() => rotateStructures(ids, 90)}>Turn 90°</button>
-        <button onClick={() => duplicateStructures(ids)}>Duplicate</button>
-        <button className="danger" onClick={() => deleteStructures(ids)}>
+        <button onClick={() => rotateStructures(ids, 90)} title="Turn it a quarter turn (what's on it turns too)">Turn 90°</button>
+        <button onClick={() => duplicateStructures(ids)} title="A copy beside it, with copies of the fixtures on it (each with its own patch)">Duplicate</button>
+        <button className="danger" onClick={() => deleteStructures(ids)} title="Delete it. Fixtures on it fall to the floor; Undo brings it back">
           Delete
         </button>
       </div>
@@ -239,8 +237,7 @@ function MountList({ structure }: { structure: Structure }) {
   const points = mountPoints(structure)
   if (!points.length) return null
   return (
-    <fieldset>
-      <legend>Fixtures go</legend>
+    <Section id="object:mounts" title="Fixtures go">
       <ul className="set-list compact">
         {points.map((m) => (
           <li key={m.id}>
@@ -250,7 +247,7 @@ function MountList({ structure }: { structure: Structure }) {
         ))}
       </ul>
       <p className="hint">Drag a fixture onto it with the Move tool (W), or drop one from the Library onto it.</p>
-    </fieldset>
+    </Section>
   )
 }
 
@@ -403,8 +400,7 @@ export function FixtureMount({ fixtures }: { fixtures: Fixture[] }) {
   const point = on && mountPoints(on).find((m) => m.id === first.mount!.point)
   const options = structures.length ? attachOptions(structures, first, 6).filter((o) => !(first.mount?.structure === o.structure.id && first.mount.point === o.point.id)).slice(0, 5) : []
   return (
-    <fieldset>
-      <legend>Attached to</legend>
+    <Section id="fixture:attached" title="Attached to">
       {mounted.length === 0 ? (
         <p className="hint">Nothing: {first.mounting === 'hanging' ? 'it hangs where it is' : 'it stands on what is below it'}.</p>
       ) : mounted.length === fixtures.length && on && fixtures.every((f) => f.mount?.structure === on.id) ? (
@@ -415,7 +411,7 @@ export function FixtureMount({ fixtures }: { fixtures: Fixture[] }) {
         <p className="sub">{mounted.length} of {fixtures.length} are attached to something.</p>
       )}
       {mounted.length > 0 && (
-        <button className="mini" onClick={() => detachFixtures(mounted.map((f) => f.id))}>
+        <button className="mini" onClick={() => detachFixtures(mounted.map((f) => f.id))} title="Take them off what they're attached to; they stand on the floor">
           Detach
         </button>
       )}
@@ -428,6 +424,6 @@ export function FixtureMount({ fixtures }: { fixtures: Fixture[] }) {
           ))}
         </div>
       )}
-    </fieldset>
+    </Section>
   )
 }

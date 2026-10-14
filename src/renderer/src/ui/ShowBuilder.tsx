@@ -105,7 +105,9 @@ export function ShowBuilder() {
       if (fresh.length) {
         built = true
         useStore.getState().select(p.fixtures.filter((f) => fresh.includes(f.id)).map((f) => f.id))
-        view.focus(fresh)
+        // A new show: the usual starting view of all of it. Added to a show: frame what's new.
+        if (replacing || before.size === 0) view.home()
+        else view.focus(fresh)
         // Once there's a show, the next request adds to it unless you say otherwise.
         setMode('add')
       }

@@ -200,7 +200,7 @@ button.link:hover:not(:disabled) { background: none; color: #fff; text-decoratio
 .credit { color: var(--muted); font-size: 10.5px; margin: 8px 0 0; flex: none; }
 
 /* --- Over the 3D view --- */
-.viewport-wrap { position: absolute; inset: 0; }
+.viewport-wrap { position: absolute; inset: 0; container-type: size; container-name: view; }
 .view-toolbar { position: absolute; top: 10px; left: 10px; display: flex; gap: 6px; align-items: flex-start; flex-wrap: wrap; }
 .view-toolbar button { background: rgba(21, 24, 29, 0.85); backdrop-filter: blur(6px); font-size: 12px; padding: 4px 9px; }
 .seg { display: flex; }
@@ -229,13 +229,42 @@ button.link:hover:not(:disabled) { background: none; color: #fff; text-decoratio
 .crashed code { color: var(--bad); }
 .crashed button { margin-right: 6px; margin-top: 8px; }
 
-/* The toolbar never wraps: labels stay on one line, the status pills shrink first. */
-.toolbar { white-space: nowrap; overflow: hidden; }
-.toolbar button, .brand { flex: none; }
-.toolbar .status { min-width: 60px; flex-shrink: 1; }
-.toolbar .group { flex-shrink: 0; }
-.toolbar .group:has(.status) { flex-shrink: 1; min-width: 0; }
-@media (max-width: 1350px) { .brand { display: none; } .haze input { width: 70px; } }
+/*
+ * The toolbar never wraps or overlaps: everything keeps its size except the two
+ * status pills, which shorten (with … and then a short form). As the window
+ * narrows, labels give way to icons, in order of how obvious the icon is.
+ */
+.toolbar { white-space: nowrap; overflow: hidden; gap: 10px; }
+.toolbar > *, .toolbar .group > * { flex: none; }
+.toolbar .group { flex: none; gap: 4px; }
+.toolbar .spacer { flex: 1 1 0; min-width: 4px; }
+.toolbar .status { flex: 0 1 auto; min-width: 0; max-width: 300px; overflow: hidden; text-overflow: ellipsis; }
+.toolbar .status .short, .toolbar .ic { display: none; }
+.toolbar .status .full { overflow: hidden; text-overflow: ellipsis; }
+.toolbar button.status { background: transparent; display: inline-flex; align-items: center; cursor: pointer; }
+.toolbar button.status:hover, .toolbar button.status.on { border-color: #4d6a95; }
+.toolbar .caret { opacity: 0.7; }
+.menu-title.wrap { white-space: normal; max-width: 300px; line-height: 1.4; }
+@media (max-width: 1400px) { .brand { display: none; } .toolbar .status { max-width: 220px; } }
+@media (max-width: 1280px) {
+  .toolbar .status .full { display: none; }
+  .toolbar .status .short { display: inline; }
+  .haze input { width: 70px; }
+}
+/* "+" and "✦" stay with their labels; the other buttons swap label for icon. */
+.toolbar .group [data-tour='add-fixtures'] .ic, .toolbar .group [data-tour='build'] .ic { display: inline; }
+@media (max-width: 1180px) {
+  .toolbar .group button .lbl { display: none; }
+  .toolbar .group button .ic { display: inline; }
+  .toolbar .group button { min-width: 30px; }
+  .toolbar .group [data-tour='build'] .lbl, .toolbar .group [data-tour='add-fixtures'] .lbl { display: inline; }
+}
+@media (max-width: 1060px) {
+  .haze .lbl { display: none; }
+  .toolbar .group [data-tour='build'] .lbl, .toolbar .group [data-tour='add-fixtures'] .lbl { display: none; }
+  .toolbar [data-tour='learn'] .lbl { display: none; }
+  .toolbar [data-tour='learn'] .ic { display: inline; }
+}
 
 /* --- Fixture actions in the 3D view --- */
 .fixture-hud {
@@ -518,3 +547,91 @@ select.where { width: 100%; }
 .small-dialog .wizard-foot { margin: 6px -20px 0; }
 .fresh-list { margin: 0 0 10px; padding-left: 18px; line-height: 1.5; font-size: 13px; }
 .fresh-options { display: flex; flex-direction: column; gap: 6px; margin: 4px 0 8px; font-size: 13px; }
+
+/* --- Camera buttons (NavPad) --- */
+.navpad {
+  position: absolute; right: 8px; bottom: 8px; z-index: 3; display: flex; align-items: flex-end; gap: 8px;
+  padding: 4px 6px 5px 8px; opacity: 0.86; border-radius: 12px; background: rgba(16, 19, 24, 0.82); backdrop-filter: blur(8px); border: 1px solid var(--line);
+  user-select: none;
+}
+.navpad:hover { opacity: 1; }
+.navpad.closed { padding: 3px; gap: 0; }
+.nav-group { display: flex; flex-direction: column; align-items: center; gap: 3px; }
+.nav-label { font-size: 9px; text-transform: uppercase; letter-spacing: 0.06em; color: var(--muted); }
+.nav-col { display: flex; flex-direction: column; gap: 3px; }
+.nav-cross { display: grid; grid-template-columns: repeat(3, 22px); grid-template-rows: repeat(3, 20px); gap: 2px; }
+.nav-cross .n { grid-area: 1 / 2; } .nav-cross .w { grid-area: 2 / 1; } .nav-cross .c { grid-area: 2 / 2; } .nav-cross .e { grid-area: 2 / 3; } .nav-cross .s { grid-area: 3 / 2; }
+.nav-btn {
+  width: 22px; height: 20px; padding: 0; display: flex; align-items: center; justify-content: center; font-size: 11px; line-height: 1;
+  border-radius: 6px; background: #1a1f27; border: 1px solid var(--line); color: inherit; touch-action: none;
+}
+.nav-col .nav-btn { width: 26px; height: 30px; font-size: 15px; }
+.nav-btn:hover { background: #24406b; border-color: #3d6fb8; }
+.nav-btn:active { background: #2f5aa0; }
+.nav-btn.dot { background: none; border: 0; }
+.nav-btn.dot::after { content: ''; width: 4px; height: 4px; border-radius: 50%; background: var(--muted); }
+.nav-hide { align-self: flex-start; background: none; border: 0; padding: 0 0 0 2px; font-size: 10px; color: var(--muted); }
+.nav-hide:hover { color: inherit; }
+/* A narrow 3D view: smaller, no labels, height and move folded away. */
+@container view (max-width: 760px) {
+  .navpad { gap: 6px; padding: 4px 6px; }
+  .nav-label { display: none; }
+  .nav-group:nth-child(3), .nav-group:nth-child(4) { display: none; }
+}
+@container view (max-height: 330px) {
+  .navpad { display: none; }
+}
+
+/* --- Tooltips --- */
+.tooltip {
+  position: fixed; z-index: 100; max-width: 300px; padding: 6px 9px; border-radius: 7px; pointer-events: none;
+  background: #f1f3f7; color: #15181d; font-size: 12px; line-height: 1.4; white-space: pre-line;
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.45); animation: tip-in 0.12s ease-out;
+}
+@keyframes tip-in { from { opacity: 0; transform: translateY(2px); } to { opacity: 1; transform: none; } }
+
+/* --- Fixture list groups --- */
+.list-controls { display: flex; gap: 6px; align-items: center; margin-bottom: 8px; }
+.list-controls .filter { flex: 1; min-width: 0; margin: 0; }
+.list-controls select { width: auto; max-width: 140px; font-size: 12px; }
+.fixture-list tbody.section + tbody.section .section-head td { border-top: 6px solid transparent; }
+.fixture-list tr.section-head td { padding: 4px 2px 3px; background: #161a20; border-bottom: 1px solid var(--line); }
+.fixture-list tr.section-head.selected td { background: #1c2c48; }
+.section-row { display: flex; align-items: center; gap: 4px; min-width: 0; }
+.section-row .fold { width: 18px; padding: 0; border: 0; background: none; color: var(--muted); font-size: 11px; flex: none; }
+.section-title { flex: 1; min-width: 0; display: flex; align-items: baseline; gap: 6px; border: 0; background: none; padding: 1px 2px; text-align: left; }
+.section-title:hover .section-name { text-decoration: underline; }
+.section-name { font-weight: 600; font-size: 12px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; flex: 0 1 auto; min-width: 0; }
+.section-title .count { flex: none; }
+.section-sub { color: var(--muted); font-size: 10.5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
+.section-tools { display: flex; gap: 2px; flex: none; }
+.fixture-list tr.in-section td:first-child { padding-left: 12px; }
+
+/* --- Patch problems --- */
+.problem-dot, .problem-icon {
+  display: inline-flex; align-items: center; justify-content: center; width: 14px; height: 14px; margin-right: 5px; flex: none;
+  border-radius: 50%; background: #e0a43a; color: #1a1205; font-size: 10px; font-weight: 800; vertical-align: 1px;
+}
+.problems-banner { border: 1px solid #6b5326; background: #241d10; border-radius: 9px; padding: 6px 8px; margin-bottom: 8px; display: flex; flex-direction: column; gap: 6px; }
+.problems-head { display: flex; align-items: center; gap: 2px; border: 0; background: none; padding: 0; color: #f2c879; font-weight: 600; font-size: 12px; text-align: left; }
+.problems-head .fold-arrow { margin-left: auto; }
+.problems { display: flex; flex-direction: column; gap: 6px; margin-bottom: 10px; }
+.problem-card { border: 1px solid #5c4a24; background: #1f1a10; border-radius: 8px; padding: 7px 8px; display: flex; flex-direction: column; gap: 6px; }
+.problem-text { font-size: 12px; line-height: 1.4; color: #f0d9a8; display: flex; align-items: flex-start; }
+.problem-text .problem-icon { margin-top: 1px; }
+.problem-actions { display: flex; gap: 4px; flex-wrap: wrap; }
+.problem-actions .mini { white-space: nowrap; }
+.mirror-note { font-size: 11.5px; color: var(--muted); margin: -4px 0 10px; }
+
+/* --- Folding sections (inspector) --- */
+fieldset.acc { padding-top: 6px; }
+fieldset.acc > legend { display: flex; align-items: center; gap: 6px; width: 100%; padding: 0; }
+.acc-head {
+  display: flex; align-items: center; gap: 5px; border: 0; background: none; padding: 2px 0; color: var(--muted);
+  font-size: 11px; text-transform: uppercase; letter-spacing: 0.6px; cursor: pointer;
+}
+.acc-head:hover { color: var(--text, #e6e6e6); }
+.acc-arrow { width: 10px; font-size: 10px; }
+.acc-extra { margin-left: auto; }
+fieldset.acc.closed { padding-bottom: 0; }
+.acc-body { padding-top: 6px; }

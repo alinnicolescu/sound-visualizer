@@ -9,6 +9,7 @@ import { defaultName, footprint as structureFootprint, mountPoints, STRUCTURE_KI
 import { projectFromSoundSwitch, soundswitchKeyOf } from '../model/soundswitchImport'
 import { autoLayout, distribute, type Shape, type Where } from '../model/layout'
 import { nearestMount } from '../model/physics'
+import { fixFor, patchProblems, type PatchProblem } from '../model/patchCheck'
 import { alignUnits, applyDeltas, lineUp, movingRoots, placeGroup, spaceEvenly, stageArea, unitsOf, withRiders, type Area, type Delta, type Edge, type Place, type Unit } from '../model/arrange'
 import type { SoundSwitchFixture } from '../../../shared/soundswitch'
 
@@ -20,6 +21,24 @@ function shortName(name: string): string {
   if (plain.length <= 28) return plain
   const cut = plain.slice(0, 29)
   return cut.slice(0, cut.lastIndexOf(' ') > 12 ? cut.lastIndexOf(' ') : 28)
+}
+
+/**
+ * The next free numbered name: "Spot 3" → "Spot 4" (or the first number not
+ * taken). Old-style "… copy copy" names are tidied to the base name first.
+ */
+export function nextName(name: string, taken: Iterable<string>): string {
+  const base = name.replace(/(\s+copy)+$/i, '').replace(/\s+\d+$/, '').trim() || name
+  const used = new Set(taken)
+  let max = 1
+  const re = new RegExp(`^${base.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\s+(\\d+)$`)
+  for (const n of used) {
+    const m = re.exec(n)
+    if (m) max = Math.max(max, Number(m[1]))
+  }
+  let n = max + 1
+  while (used.has(`${base} ${n}`)) n++
+  return `${base} ${n}`
 }
 
 export function addFixture(typeId: string): void {
@@ -67,13 +86,12 @@ export function deleteFixtures(ids: string[]): void {
 export function duplicateFixtures(ids: string[]): void {
   const source = store().project.fixtures.filter((f) => ids.includes(f.id))
   if (!source.length) return
-  const copies: Fixture[] = source.map((f) => ({
-    ...f,
-    id: newId(),
-    name: `${f.name} copy`,
-    soundswitchKey: undefined,
-    position: [f.position[0] + 0.6, f.position[1], f.position[2]] as Fixture['position']
-  }))
+  const taken = store().project.fixtures.map((f) => f.name)
+  const copies: Fixture[] = source.map((f) => {
+    const name = nextName(f.name, taken)
+    taken.push(name)
+    return { ...f, id: newId(), name, soundswitchKey: undefined, position: [f.position[0] + 0.6, f.position[1], f.position[2]] as Fixture['position'] }
+  })
   store().apply(copies.length === 1 ? `Duplicate ${source[0].name}` : `Duplicate ${copies.length} fixtures`, (p) => ({
     ...p,
     fixtures: [...p.fixtures, ...copies]
@@ -491,11 +509,11 @@ export function duplicateStructures(ids: string[]): void {
   const copies: Structure[] = []
   const newFixtures: Fixture[] = []
   for (const s of source) {
-    const copy: Structure = { ...s, id: structureId(), name: `${s.name} copy`, position: [round(s.position[0] + shift), s.position[1], s.position[2]] }
+    const copy: Structure = { ...s, id: structureId(), name: nextName(s.name, [...structuresOf(p), ...copies].map((x) => x.name)), position: [round(s.position[0] + shift), s.position[1], s.position[2]] }
     copies.push(copy)
     for (const f of p.fixtures.filter((x) => x.mount?.structure === s.id)) {
       const spot = planPatch([...p.fixtures, ...newFixtures], 1, footprint(f), { universe: f.universe, address: 1 })[0] ?? { universe: f.universe, address: f.address }
-      newFixtures.push({ ...f, id: newId(), name: `${f.name.replace(/\s+\d+$/, '')} copy`, soundswitchKey: undefined, ...spot, position: [round(f.position[0] + shift), f.position[1], f.position[2]], mount: { ...f.mount!, structure: copy.id } })
+      newFixtures.push({ ...f, id: newId(), name: nextName(f.name, [...p.fixtures, ...newFixtures].map((x) => x.name)), soundswitchKey: undefined, ...spot, position: [round(f.position[0] + shift), f.position[1], f.position[2]], mount: { ...f.mount!, structure: copy.id } })
     }
   }
   store().apply(copies.length === 1 ? `Duplicate ${source[0].name}` : `Duplicate ${copies.length} objects`, (q) => ({
@@ -609,4 +627,37 @@ export function orientFixtures(ids: string[], to: 'hanging' | 'floor'): string[]
 export function followSoundSwitch(profile: string): void {
   store().apply('Follow SoundSwitch', (p) => ({ ...p, soundswitch: { link: true, profile } }))
   void import('./soundswitchLink').then(({ useSoundSwitch }) => useSoundSwitch.getState().syncNow())
+}
+
+// ---------------------------------------------------------------------------
+// Patch problems (model/patchCheck.ts)
+// ---------------------------------------------------------------------------
+
+/** Move the clashing (or overflowing) fixtures, with their copies, to free channels. */
+export function fixPatchProblem(problem: PatchProblem): boolean {
+  const p = store().project
+  const to = fixFor(p, problem)
+  if (!to) return false
+  const ids = problem.move.fixtures.map((f) => f.id)
+  updateFixtures(ids, `Move ${problem.move.fixtures[0].name} to free channels`, (f) => ({ ...f, universe: to.universe, address: to.address }))
+  return true
+}
+
+/** Keep a clash on purpose: it stops being reported (saved with the show). */
+export function ignorePatchProblem(problem: PatchProblem): void {
+  store().apply('Keep the shared channels', (p) => ({ ...p, ignoredClashes: [...new Set([...(p.ignoredClashes ?? []), problem.key])] }))
+}
+
+/** Fix every problem that can be fixed, one undo step. */
+export function fixAllPatchProblems(): number {
+  const mark = store().beginBatch()
+  let fixed = 0
+  // Fixing one can change the others: recheck each time.
+  for (let guard = 0; guard < 200; guard++) {
+    const next = patchProblems(store().project).find((x) => fixFor(store().project, x))
+    if (!next || !fixPatchProblem(next)) break
+    fixed++
+  }
+  store().endBatch(mark, fixed === 1 ? 'Fix a patch problem' : `Fix ${fixed} patch problems`)
+  return fixed
 }

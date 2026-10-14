@@ -7,6 +7,7 @@
 import { alignSelection, lineUpSelection, placeSelection, spaceSelection, unitCount } from '../state/commands'
 import { notify } from '../state/notices'
 import { MenuItem, SubMenu } from './Menu'
+import { Section } from './Section'
 
 const done = (moved: boolean) => !moved && notify('info', 'Already there.')
 
@@ -56,8 +57,7 @@ export function ArrangeButtons({ ids }: { ids: string[] }) {
     </button>
   )
   return (
-    <fieldset className="arrange quick">
-      <legend>Move and line up</legend>
+    <Section id="move-line-up" title="Move and line up" className="arrange quick" hint="Move the selection on the stage, line it up evenly, align it">
       <div className="field">
         <span className="label">Move to</span>
         <div className="presets">
@@ -86,6 +86,6 @@ export function ArrangeButtons({ ids }: { ids: string[] }) {
           {b('Even gaps', 'Equal gaps between them, left to right', () => spaceSelection(ids, 'x'), n < 3)}
         </div>
       </div>
-    </fieldset>
+    </Section>
   )
 }

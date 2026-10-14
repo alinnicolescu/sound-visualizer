@@ -8,7 +8,7 @@ import * as THREE from 'three'
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js'
 import { TransformControls } from 'three/addons/controls/TransformControls.js'
 import { addLibraryFixtures, addStructure, mountFixtures, moveFixtures, moveSelection } from '../state/commands'
-import { registerView, type ViewPreset } from '../state/viewBus'
+import { registerView, type NudgeKind, type ViewPreset } from '../state/viewBus'
 import { useLibrary } from '../state/library'
 import { DRAG_TYPE, type DragPayload } from '../ui/LibraryPanel'
 import { STRUCTURE_DRAG, type StructureDrag } from '../ui/ObjectsPanel'
@@ -17,8 +17,10 @@ import { ShowBuilder } from '../ui/ShowBuilder'
 import { roomFit, type RoomFit } from '../model/physics'
 import { mountPoints, nearestOn, pointAt, STRUCTURE_KINDS, toWorld, type MountPoint, type Structure } from '../model/structures'
 import { movingRoots, withRiders } from '../model/arrange'
+import { boundsOf, EMPTY_BOUNDS, fitCamera } from '../model/cameraFit'
 import { StructureRig, mountGuides } from './structures'
 import { ViewToolbar } from '../ui/ViewToolbar'
+import { NavPad } from '../ui/NavPad'
 import { Notices } from '../ui/Notices'
 import { useStore } from '../state/store'
 import { useViewSettings } from '../state/viewSettings'
@@ -109,25 +111,82 @@ export function Viewport() {
       controls.enableDamping = true
       flight = { from: camera.position.clone(), to: position, fromT: controls.target.clone(), toT: target, t: 0 }
     }
-    const PRESETS: Record<ViewPreset, [[number, number, number], [number, number, number]]> = {
-      perspective: [[0, 4.5, 15], [0, 2.5, -1]],
-      top: [[0, 24, 0.6], [0, 0, 0]],
-      front: [[0, 2.6, 16], [0, 2.6, 0]],
-      left: [[-16, 3, 0.5], [0, 2.4, 0]],
-      right: [[16, 3, 0.5], [0, 2.4, 0]],
-      // Standing in the audience, looking up: where the gobos land on the ceiling.
-      up: [[0, 1.4, 9], [0, 6.2, -0.5]]
+    /**
+     * Each view looks from a direction (from the show towards the camera) and is
+     * framed to fit the show: everything in it is in view, nothing more.
+     */
+    const DIRECTIONS: Record<Exclude<ViewPreset, 'up'>, [number, number, number]> = {
+      perspective: [0.3, 0.42, 1],
+      top: [0, 1, 0.035],
+      front: [0, 0.12, 1],
+      left: [-1, 0.18, 0.04],
+      right: [1, 0.18, 0.04]
     }
-    const frame = (objects: THREE.Object3D[]) => {
-      const box = new THREE.Box3()
-      for (const o of objects) box.expandByObject(o)
-      if (box.isEmpty()) return
-      const center = box.getCenter(new THREE.Vector3())
-      const size = box.getSize(new THREE.Vector3()).length()
-      const distance = Math.max(2.5, (size / 2 / Math.tan((camera.fov * Math.PI) / 360)) * 1.3)
+    const showBounds = (ids: string[] | 'all' = 'all') => boundsOf(useStore.getState().project, ids)
+    const fitView = (v: ViewPreset, ids: string[] | 'all' = 'all', instant = false) => {
+      const b = showBounds(ids) ?? EMPTY_BOUNDS
+      let position: THREE.Vector3
+      let target: THREE.Vector3
+      if (v === 'up') {
+        // Standing in the audience, looking up: where the gobos land on the ceiling.
+        const cx = (b.min[0] + b.max[0]) / 2
+        const cz = (b.min[2] + b.max[2]) / 2
+        position = new THREE.Vector3(cx, 1.4, b.max[2] + 4)
+        target = new THREE.Vector3(cx, Math.max(4, b.max[1] + 1.5), cz)
+      } else {
+        const fit = fitCamera(b, DIRECTIONS[v], camera.fov, camera.aspect)
+        position = new THREE.Vector3(...fit.position)
+        target = new THREE.Vector3(...fit.target)
+      }
+      if (!instant) return flyTo(position, target)
+      camera.position.copy(position)
+      controls.target.copy(target)
+      controls.update()
+    }
+    /** Frame these things (or everything) from where the camera is looking now. */
+    const frameIds = (ids: string[] | 'all') => {
+      const b = showBounds(ids)
+      if (!b) return
       const direction = camera.position.clone().sub(controls.target).normalize()
-      flyTo(center.clone().add(direction.multiplyScalar(distance)), center)
+      const fit = fitCamera(b, [direction.x, direction.y, direction.z], camera.fov, camera.aspect, 0.8)
+      flyTo(new THREE.Vector3(...fit.position), new THREE.Vector3(...fit.target))
     }
+
+    /**
+     * Small camera moves, for the on-screen buttons and the keyboard, so the view
+     * works without a scroll wheel or a right mouse button. `amount` is in steps
+     * (a button held down sends a fraction of a step every frame).
+     */
+    const nudge = (kind: NudgeKind, x: number, y: number) => {
+      flight = null
+      const offset = camera.position.clone().sub(controls.target)
+      const distance = offset.length()
+      if (kind === 'zoom') {
+        const next = Math.min(120, Math.max(0.6, distance * Math.pow(0.9, y)))
+        camera.position.copy(controls.target).add(offset.setLength(next))
+      } else if (kind === 'orbit') {
+        const sph = new THREE.Spherical().setFromVector3(offset)
+        sph.theta -= x * 0.07
+        sph.phi = Math.min(controls.maxPolarAngle, Math.max(0.05, sph.phi - y * 0.05))
+        camera.position.copy(controls.target).add(new THREE.Vector3().setFromSpherical(sph))
+      } else {
+        // Pan: sideways along the screen; 'lift': straight up and down in the room.
+        const right = new THREE.Vector3().setFromMatrixColumn(camera.matrixWorld, 0).setY(0).normalize()
+        const step = Math.max(0.05, distance * 0.04)
+        const move = new THREE.Vector3()
+        if (kind === 'pan') {
+          const forward = new THREE.Vector3().setFromMatrixColumn(camera.matrixWorld, 2).setY(0).normalize().negate()
+          move.addScaledVector(right, x * step).addScaledVector(forward, y * step)
+        } else move.set(0, y * step, 0).addScaledVector(right, x * step)
+        if (controls.target.y + move.y < 0) move.y = -controls.target.y
+        camera.position.add(move)
+        controls.target.add(move)
+      }
+      controls.update()
+    }
+
+    // Keys held down move the camera smoothly (see the frame loop).
+    const held = new Set<string>()
 
     // --- Keep one FixtureRig per fixture in the project ---
     const rigs = new Map<string, FixtureRig>()
@@ -465,8 +524,18 @@ export function Viewport() {
       nav.alt = e.altKey
     }
     const typing = (e: Event) => e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement || e.target instanceof HTMLSelectElement
+    const NAV_KEYS = new Set(['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown', '+', '=', '-', '_', 'PageUp', 'PageDown'])
     const onKeyDown = (e: KeyboardEvent) => {
       if (typing(e)) return
+      // Camera keys: arrows orbit, Shift+arrows move, + and - zoom, Page Up/Down raise and lower, Home frames the show.
+      if (NAV_KEYS.has(e.key) && !e.metaKey && !e.ctrlKey && !document.querySelector('.tour-layer, .wizard-backdrop, .fixture-menu.floating')) {
+        e.preventDefault()
+        held.add(e.key)
+      }
+      if (e.key === 'Home' && !e.metaKey) {
+        e.preventDefault()
+        fitView('perspective')
+      }
       if (e.code === 'Space') {
         e.preventDefault()
         nav.space = true
@@ -482,11 +551,16 @@ export function Viewport() {
       applyNav()
     }
     const onKeyUp = (e: KeyboardEvent) => {
+      held.delete(e.key)
+      // Shift changes '=' to '+' and '-' to '_' between press and release.
+      if (e.key === '+' || e.key === '=') (held.delete('+'), held.delete('='))
+      if (e.key === '-' || e.key === '_') (held.delete('-'), held.delete('_'))
       if (e.code === 'Space') nav.space = false
       onModifiers(e)
       applyNav()
     }
     const onBlur = () => {
+      held.clear()
       nav.space = nav.shift = nav.alt = false
       applyNav()
     }
@@ -672,19 +746,23 @@ export function Viewport() {
       camera.aspect = w / Math.max(1, h)
       camera.updateProjectionMatrix()
     }
-    const observer = new ResizeObserver(resize)
+    // The first view: the show from the front and a little to the side, everything in it in view.
+    let framed = false
+    const observer = new ResizeObserver(() => {
+      resize()
+      if (!framed && container.clientWidth > 0 && container.clientHeight > 0) {
+        framed = true
+        fitView('perspective', 'all', true)
+      }
+    })
     observer.observe(container)
     resize()
 
     registerView({
-      preset: (v) => {
-        const [p, t] = PRESETS[v]
-        flyTo(new THREE.Vector3(...p), new THREE.Vector3(...t))
-      },
-      focus: (ids) => {
-        const list = ids === 'all' ? [...rigs.values(), ...sets.values()] : ids.map((id) => rigs.get(id) ?? sets.get(id)).filter((r): r is FixtureRig | StructureRig => !!r)
-        frame(list.map((r) => r.root))
-      },
+      preset: (v) => fitView(v),
+      focus: (ids) => frameIds(ids),
+      home: (instant) => fitView('perspective', 'all', instant),
+      nudge: (kind, x, y) => nudge(kind, x, y),
       goTo: (p, t) => flyTo(new THREE.Vector3(...p), new THREE.Vector3(...t)),
       current: () => ({ position: camera.position.toArray() as [number, number, number], target: controls.target.toArray() as [number, number, number] }),
       capture: () => {
@@ -773,6 +851,20 @@ export function Viewport() {
       }
       fog.density = 0.008 + haze * 0.025
       scene.fog = haze > 0 ? fog : null
+      if (held.size) {
+        const k = dt * 12 // about 12 steps a second
+        const shift = nav.shift
+        for (const key of held) {
+          if (key === 'ArrowLeft') nudge(shift ? 'pan' : 'orbit', shift ? -k : -k, 0)
+          if (key === 'ArrowRight') nudge(shift ? 'pan' : 'orbit', k, 0)
+          if (key === 'ArrowUp') nudge(shift ? 'pan' : 'orbit', 0, k)
+          if (key === 'ArrowDown') nudge(shift ? 'pan' : 'orbit', 0, -k)
+          if (key === '+' || key === '=') nudge('zoom', 0, k)
+          if (key === '-' || key === '_') nudge('zoom', 0, -k)
+          if (key === 'PageUp') nudge('lift', 0, k)
+          if (key === 'PageDown') nudge('lift', 0, -k)
+        }
+      }
       if (flight) {
         flight.t = Math.min(1, flight.t + dt / 0.45)
         const k = 1 - Math.pow(1 - flight.t, 3)
@@ -835,6 +927,7 @@ export function Viewport() {
       <ShowBuilder />
       <StructureEditor />
       <ViewToolbar />
+      <NavPad />
       <Notices />
     </div>
   )

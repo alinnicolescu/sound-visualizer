@@ -59,7 +59,7 @@ export function LibraryPanel() {
       <input data-tour="library-search" className="filter" placeholder="Search maker, model or type…" value={query} onChange={(e) => setQuery(e.target.value)} autoFocus />
       <div className="chips">
         {CATEGORIES.map((c) => (
-          <button key={c.id} className={`chip ${category === c.id ? 'on' : ''}`} onClick={() => setCategory(c.id)}>
+          <button key={c.id} className={`chip ${category === c.id ? 'on' : ''}`} onClick={() => setCategory(c.id)} title={`Show only ${c.label.toLowerCase()}`}>
             {c.label}
           </button>
         ))}
@@ -263,7 +263,7 @@ function Details({ entry }: { entry: LibraryEntry }) {
             : `Patched ${first.universe + 1}.${first.address} to ${last.universe + 1}.${last.address + channels - 1}${last.universe !== first.universe ? ' (continues into the next universe)' : ''}.`
           : 'No room to patch these.'}
       </p>
-      <button className="primary" disabled={!plan.length} onClick={add}>
+      <button className="primary" disabled={!plan.length} onClick={add} title="Add them to the show, patched where the line above says">
         Add {count > 1 ? `${count} fixtures` : 'to rig'}
       </button>
       <a className="lib-link" href={`https://open-fixture-library.org/${entry.key}`} target="_blank" rel="noreferrer">

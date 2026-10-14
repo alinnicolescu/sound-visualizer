@@ -131,14 +131,15 @@ export function LearnMenu() {
       <button
         data-tour="learn"
         className={at ? 'on' : ''}
-        title="Tours of the app, and the welcome again"
+        title="Learn: guided tours that point at the real buttons, and the welcome again"
         onClick={(e) => {
           if (at) return close()
           const r = e.currentTarget.getBoundingClientRect()
           setAt({ x: r.right - 280, y: r.bottom + 4 })
         }}
       >
-        ? Learn
+        <span className="ic">?</span>
+        <span className="lbl">? Learn</span>
       </button>
       {at && (
         <MenuShell at={at} onClose={close}>

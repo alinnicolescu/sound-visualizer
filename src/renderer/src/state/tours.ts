@@ -41,11 +41,12 @@ export const TOURS: Tour[] = [
     summary: 'The panels, the 3D view, the tools and where your work is saved.',
     steps: [
       { title: 'Your workspace', body: 'A one-minute look at where everything is. Use Next and Back, or the arrow keys; Esc ends the tour any time.', prepare: panels },
-      { target: 'left-tabs', title: 'Fixtures, Library and Objects', body: 'Fixtures lists the lights in your show. Library has hundreds of real fixtures to add. Objects has stages, totems, truss, speakers, furniture and more.', prepare: leftTab('fixtures') },
+      { target: 'left-tabs', title: 'Fixtures, Library and Objects', body: 'Fixtures lists the lights in your show, grouped by type (or SoundSwitch group, or patch): click a group’s name to select it all and edit it together, or fold it away. Library has hundreds of real fixtures to add. Objects has stages, totems, truss, speakers, furniture and more.', prepare: leftTab('fixtures') },
       { target: 'viewport', title: 'The 3D view', body: 'Click something to select it; drag it to move it. Drag on empty floor to select several. Hold Space and drag to look around, and scroll to zoom. Right-click anything for its actions.' },
       { target: 'tools', title: 'Select, Move and Orbit', body: 'Select (V) clicks and drags things. Move (W) adds arrows for exact moves and going up and down. Orbit (O) turns the mouse into the camera.' },
       { target: 'views', title: 'Camera views', body: 'Jump to a perspective, top, front, side or ceiling view (keys 1 to 6). Focus (F) frames whatever is selected.' },
-      { target: 'inspector', title: 'The inspector', body: 'Everything about what you selected: name, patch, how it is mounted, sizes, and buttons to move and line things up. Select several to change them all at once.' },
+      { target: 'navpad', title: 'Getting around without a mouse wheel', body: 'Zoom in and out, turn around the show, move left, right, forward and back, and go up and down. Hold a button to keep moving; ⌂ goes back to the starting view. The keyboard works too: arrows turn, Shift+arrows move, + and − zoom, Home goes back.' },
+      { target: 'inspector', title: 'The inspector', body: 'Everything about what you selected: name, patch, how it is mounted, sizes, and buttons to move and line things up. Click a section’s title to fold it away. Select several to change them all at once. If two fixtures use the same channels, it says so here, with a button to fix it.' },
       { target: 'bottom', title: 'Faders and the DMX map', body: 'Test a fixture with faders, play a demo, or see where every fixture sits on the DMX channels.' },
       { target: 'undo', title: 'Undo anything', body: 'Every change is one step to undo (⌘Z) or redo (⇧⌘Z), even a whole show built from a description.' },
       { target: 'save', title: 'Save your show', body: 'Save (⌘S) keeps the show, the objects and the fixture types in one file you can open on any Mac.' },
@@ -74,7 +75,7 @@ export const TOURS: Tour[] = [
       { target: 'library-search', title: 'Search', body: 'Type a maker, a model or a kind of light: “chauvet spot”, “pixel bar”, “mh-150”.' },
       { target: 'library-list', title: 'Pick one', body: 'Click a fixture to see its size and choose its mode, how many and where to patch them, then add them. Or drag one straight into the 3D view, onto the floor, a totem or the truss.' },
       { target: 'viewport', title: 'Put it on something', body: 'Drag a fixture over a totem, a stand or a truss and it snaps on (a ring shows where). Grab the light later and its stand comes too; hold Option to lift it off.' },
-      { target: 'tab-fixtures', title: 'Your fixtures', body: 'Everything in the show, with its patch. Right-click a row for the same actions as in the 3D view. M mutes, S solos, H hides.', prepare: leftTab('fixtures') },
+      { target: 'tab-fixtures', title: 'Your fixtures', body: 'Everything in the show, with its patch, grouped by type so copies sit together. Click a group’s name to select it all; right-click a row for the same actions as in the 3D view. M mutes, S solos, H hides. Patch problems show at the top with a Fix button.', prepare: leftTab('fixtures') },
       { target: 'inspector', title: 'Fine-tune', body: 'Change the patch, hang it or stand it upright, invert pan or tilt, and line several up.' }
     ]
   },
@@ -97,7 +98,7 @@ export const TOURS: Tour[] = [
     title: 'SoundSwitch and live DMX',
     summary: 'Following your SoundSwitch rig and watching the show play.',
     steps: [
-      { target: 'soundswitch', title: 'Your SoundSwitch project', body: 'The app finds the project SoundSwitch has open. Auto keeps the show’s patch in step with it; Find looks again; Choose… picks another project.', prepare: panels },
+      { target: 'soundswitch', title: 'Your SoundSwitch project', body: 'The app finds the project SoundSwitch has open. Click here to sync automatically (or now), find it again, choose another project, or make a new show from it.', prepare: panels },
       { target: 'artnet', title: 'Live lighting data', body: 'Turns green when SoundSwitch is playing. In SoundSwitch: Preferences ▸ Hardware ▸ DMX & Art-Net, tick Enable Art-Net and Localhost Art-Net Node, and select Sound Visualizer.' },
       { target: 'play-demo', title: 'No SoundSwitch to hand?', body: 'Play demo runs a test show on every fixture. Select a fixture to get its faders.', prepare: click('tab-faders') },
       { target: 'tab-dmx', title: 'The DMX map', body: 'Each universe the way SoundSwitch shows it, with live levels. Click a fixture to select it.' },

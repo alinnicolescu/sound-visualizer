@@ -141,6 +141,10 @@ A show made from SoundSwitch follows that project: patch changes there come in, 
 
 With any tool, **hold Space** and drag to orbit, **Space+Shift** drag to pan, **Space+Alt/Option** drag to zoom. The scroll wheel always zooms, and the middle button pans. Clicks go through beams to the fixture, and a click near a small fixture picks it.
 
+**No scroll wheel or right button needed.** The camera buttons in the bottom-right corner of the 3D view zoom (＋ −), turn around the show (◀ ▶ ▲ ▼), move left, right, forward and back, and go up and down; hold one to keep moving, and ⌂ goes back to the starting view. ✕ tucks them away (✥ brings them back). The keyboard does the same: **arrows** turn, **Shift+arrows** move, **+ / −** zoom, **Page Up / Page Down** go up and down, **Home** goes back to the starting view. On a trackpad, pinch to zoom.
+
+**The starting view.** A show opens (and a new show, template or file starts) looking at the whole show from the front and a little to the side, framed so every fixture and object is in view. The view buttons (Persp, Top, Front, Left, Right) frame the show the same way, from their side.
+
 | Do this | How |
 | --- | --- |
 | Views | Persp, Top, Front, Left, Right, Up buttons, or keys 1–6 |
@@ -158,9 +162,15 @@ With any tool, **hold Space** and drag to orbit, **Space+Shift** drag to pan, **
 
 **Acting on fixtures in the 3D view.** Select a fixture (or several) and a bar appears above it: **M** mute, **S** solo, **Hide**, **Dup** (same patch, mirrors it), **Mirror**, and for moving heads **⇄ Pan** / **⇅ Tilt** to invert. **⋯** or right-clicking a fixture (in the view or the fixture list) opens the full menu: duplicate with its own patch, hang from the truss or stand on the floor, move and line up, rotate 90°, focus, select the same type, and delete. Long menus scroll, and submenus open to the side.
 
-**Groups.** Fixtures keep their SoundSwitch group (Group 1, 2, 3...). The chips above the fixture list filter it to one group; with a group picked, **Select**, **M**, **S** and **Hide** act on the whole group. Double-click a chip to give the group a name (SoundSwitch only numbers them). Fixtures you add yourself can be put in a group in the inspector.
+**Groups in the fixture list.** The list is grouped **by type** (so copies sit together), or by SoundSwitch group, by patch, or not at all (the menu next to the filter). Click a group's name to select all of it and edit it together in the inspector; ▾ folds a group away (▾▾ folds them all); M, S and ● on the group's row mute, solo and hide all of it. Grouped by SoundSwitch group, double-click a group's name to give it a name (SoundSwitch only numbers them).
+
+**Patch problems.** Copies of a fixture on the same address mirror each other on purpose, so they're never flagged. When two *different* fixtures use some of the same channels (or one runs past channel 512), the top of the fixture list says so once, in plain words, and so does the inspector when one of them is selected: **Move … to …** puts it (and its copies) on the first free channels, **Select** shows them, **Keep as is** stops reporting a clash you meant (saved with the show), and **Fix all** does every one at once. The DMX map only marks real clashes in yellow.
+
+**The inspector** is in sections (Attached to, Move and line up, Fixture, Patch, Mounting…). Click a section's title to fold it away; the app remembers. Hover over almost anything for a short explanation of what it does.
 
 **Distribute.** In the inspector's Arrange section, **Distribute evenly** spreads the selection as a **Line**, **Arc**, **Circle** or **Grid**, where they are, on the truss, or on the floor at the front or back, with an optional total width. **Auto-place by type** puts fixtures where a new import would: movers on the truss, tubes across the back, bars on the booth, GigBars on stands, floor units at the front. Both are also in the right-click menu.
+
+**The toolbar** fits any window: as it gets narrower, labels turn into icons and the SoundSwitch and Art-Net pills shorten. Click the SoundSwitch pill for its options: sync automatically or now, follow the open project, find it again, choose another, or make a new show from it.
 
 **DMX Map.** The bottom panel's DMX Map shows each universe the way SoundSwitch does: Universe One, Universe Two, each fixture as a coloured band across its channels (coloured by group), named at its start address, with cross-patched channels in yellow and live levels along the bottom. Hover to see what a channel does; click to select; double-click to find it in 3D. Universes are numbered like SoundSwitch everywhere in the app (Universe 1 is Art-Net universe 0).
 

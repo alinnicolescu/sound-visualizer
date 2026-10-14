@@ -96,7 +96,7 @@ describe('physics', () => {
     addLibraryFixtures(mh150(), 1, { mount: { structure: totem, point: 'top' } })
     duplicateStructures([totem])
     const copy = state().structures!.at(-1)!
-    expect(copy.name).toContain('copy')
+    expect(copy.name).toBe('Totem 6 ft 2')
     const onCopy = state().fixtures.filter((f) => f.mount?.structure === copy.id)
     expect(onCopy.length).toBe(1)
     expect(findOverlaps(state().fixtures)).toEqual([])

@@ -28,33 +28,44 @@ export function Toolbar({ artNet }: { artNet: ArtNetStatus | null }) {
     <header className="toolbar">
       <div className="brand">Sound Visualizer</div>
       <div className="group">
-        <button data-tour="add-fixtures" className={leftTab === 'library' ? 'primary' : ''} onClick={() => setLeftTab(leftTab === 'library' ? 'fixtures' : 'library')} title="Browse the fixture library (Cmd+L)">
-          + Add fixtures
+        <button
+          data-tour="add-fixtures"
+          className={leftTab === 'library' ? 'primary' : ''}
+          onClick={() => setLeftTab(leftTab === 'library' ? 'fixtures' : 'library')}
+          title="Add fixtures: browse the library of real lights and add them to the show (⌘L)"
+        >
+          <span className="ic">＋</span>
+          <span className="lbl"> Add fixtures</span>
         </button>
-        <button disabled={selection.length === 0} onClick={() => runCommand('duplicate')} title="Same patch, mirrors the original (Cmd+D)">
-          Duplicate
+        <button disabled={selection.length === 0} onClick={() => runCommand('duplicate')} title="Duplicate the selection. Copies share the original's DMX patch, so they mirror it (⌘D)">
+          <span className="ic">⧉</span>
+          <span className="lbl"> Duplicate</span>
         </button>
-        <button disabled={selection.length === 0} onClick={() => runCommand('delete')}>
-          Delete
+        <button disabled={selection.length === 0} onClick={() => runCommand('delete')} title="Delete the selection (⌫). Undo brings it back">
+          <span className="ic">⌫</span>
+          <span className="lbl"> Delete</span>
         </button>
       </div>
       <div className="group">
-        <button data-tour="build" className={builder ? 'primary' : ''} onClick={() => runCommand('builder')} title="Describe a show and have it built for you (Cmd+K)">
-          ✦ Build show
+        <button data-tour="build" className={builder ? 'primary' : ''} onClick={() => runCommand('builder')} title="Build show: describe a show in your own words and have it built and patched for you (⌘K)">
+          <span className="ic">✦</span>
+          <span className="lbl"> Build show</span>
         </button>
         <ShowsMenu />
       </div>
       <div className="group" data-tour="undo">
-        <button disabled={!past.length} onClick={undo} title={past.at(-1) ? `Undo ${past.at(-1)!.label}` : 'Nothing to undo'}>
-          Undo
+        <button disabled={!past.length} onClick={undo} title={past.at(-1) ? `Undo: ${past.at(-1)!.label} (⌘Z)` : 'Nothing to undo'}>
+          <span className="ic">↶</span>
+          <span className="lbl"> Undo</span>
         </button>
-        <button disabled={!future.length} onClick={redo} title={future[0] ? `Redo ${future[0].label}` : 'Nothing to redo'}>
-          Redo
+        <button disabled={!future.length} onClick={redo} title={future[0] ? `Redo: ${future[0].label} (⇧⌘Z)` : 'Nothing to redo'}>
+          <span className="ic">↷</span>
+          <span className="lbl"> Redo</span>
         </button>
       </div>
-      <label className="group haze" data-tour="haze">
-        Haze
-        <input type="range" min={0} max={1} step={0.01} value={haze} onChange={(e) => setHaze(Number(e.target.value))} />
+      <label className="group haze" data-tour="haze" title="Haze: how much the beams show in the air">
+        <span className="lbl">Haze</span>
+        <input type="range" min={0} max={1} step={0.01} value={haze} onChange={(e) => setHaze(Number(e.target.value))} aria-label="Haze" />
       </label>
       <div className="spacer" />
       <SoundSwitchIndicator />
@@ -120,7 +131,7 @@ function SaveButton() {
   if (!window.api) return null
   const edited = saved !== project
   return (
-    <button data-tour="save" onClick={() => void saveDocument(false)} title={path ? `${path}${edited ? '\nUnsaved changes' : ''}` : 'Save this project to a file (Cmd+S)'}>
+    <button data-tour="save" onClick={() => void saveDocument(false)} title={path ? `Save (⌘S): ${path}${edited ? '\nUnsaved changes' : '\nAll changes saved'}` : 'Save the show to a file (⌘S): the show, its objects and fixture types in one file'}>
       {edited ? '● ' : ''}Save
     </button>
   )
@@ -135,10 +146,14 @@ function ArtNetIndicator({ status }: { status: ArtNetStatus | null }) {
   }, [])
 
   let text = 'Art-Net: browser only'
+  let short = 'Art-Net'
   let tone = 'off'
+  let help = 'Live lighting data (Art-Net) only arrives in the Mac app.'
   if (status?.error) {
     text = `Art-Net error: ${status.error}`
+    short = 'Art-Net: error'
     tone = 'bad'
+    help = 'Another program may be using port 6454 (another visualizer). Close it and restart this app.'
   } else if (status?.listening) {
     const active = dmxBus.artNetActive()
     const sender = dmxBus.artNetSenders().at(-1)
@@ -146,16 +161,25 @@ function ArtNetIndicator({ status }: { status: ArtNetStatus | null }) {
     text = active && sender
       ? `Art-Net: receiving from ${sender.address}, Art-Net universe ${sender.universes.join(', ')}${shift ? ` (shifted ${shift > 0 ? '-' : '+'}${Math.abs(shift)} to match)` : ''}`
       : `Art-Net: listening on ${status.address}`
+    short = active ? 'Art-Net: live' : 'Art-Net: waiting'
     tone = active ? 'good' : 'idle'
+    help = active
+      ? 'Lighting data is arriving: the rig is following the show.'
+      : 'Waiting for lighting data. In SoundSwitch: Preferences ▸ Hardware ▸ DMX & Art-Net, tick Enable Art-Net and Localhost Art-Net Node, and select Sound Visualizer.'
   }
   return (
-    <div className={`status ${tone}`} data-tour="artnet">
-      {text}
+    <div className={`status ${tone}`} data-tour="artnet" title={`${text}\n${help}`}>
+      <span className="full">{text}</span>
+      <span className="short">{short}</span>
     </div>
   )
 }
 
-/** Which SoundSwitch project we follow, with buttons to sync, re-find or pick one. */
+/**
+ * SoundSwitch in one pill: what it has open and whether this show follows it.
+ * Click for the rest (sync automatically, sync now, find, choose, follow, new show),
+ * so the toolbar stays tidy at any window size.
+ */
 function SoundSwitchIndicator() {
   const status = useSoundSwitch((s) => s.status)
   const autoSync = useSoundSwitch((s) => s.autoSync)
@@ -163,55 +187,79 @@ function SoundSwitchIndicator() {
   const syncNow = useSoundSwitch((s) => s.syncNow)
   const link = useStore((s) => s.project.soundswitch)
   const inShow = useStore((s) => s.project.fixtures.filter((f) => f.soundswitchKey).length)
+  const [at, setAt] = useState<{ x: number; y: number } | null>(null)
   if (!window.api) return null
+  const close = () => setAt(null)
+  const linked = status?.state === 'linked'
   // This show doesn't follow SoundSwitch, or follows a different project.
-  if (status?.state === 'linked' && link && (!link.link || (link.profile && link.profile !== status.name))) {
-    const other = link.link && link.profile
-    return (
-      <div className="group" data-tour="soundswitch">
-        <div className="status off" title={other ? `This show follows the SoundSwitch project “${link.profile}”. SoundSwitch has “${status.name}” open, so nothing is synced.` : 'This show was made without SoundSwitch, so SoundSwitch patch changes are not brought in.'}>
-          {other ? `Show follows “${link.profile}” · SoundSwitch has “${status.name}”` : `SoundSwitch: ${status.name} · not used by this show`}
-        </div>
-        {!other && (
-          <button className="quiet" title="Bring this SoundSwitch project's fixtures into this show and follow its patch" onClick={() => followSoundSwitch(status.name)}>
-            Follow it
-          </button>
-        )}
-        <button className="quiet" onClick={() => useWizards.getState().openNewShow()} title="Make a show from a SoundSwitch project, choosing its fixtures">
-          New show…
-        </button>
-      </div>
-    )
-  }
+  const notUsed = linked && link && !link.link
+  const other = linked && link?.link && link.profile && link.profile !== status.name ? link.profile : null
 
   let text = 'SoundSwitch: looking…'
+  let short = 'SoundSwitch…'
   let tone = 'off'
-  let title = ''
-  if (status?.state === 'linked') {
-    text = link?.include ? `SoundSwitch: ${status.name} · ${inShow} of ${status.fixtures.length} fixtures in this show` : `SoundSwitch: ${status.name} · ${status.fixtures.length} fixtures${status.hidden ? ` (${status.hidden} hidden)` : ''}`
+  let about = 'Looking for the project SoundSwitch has open.'
+  if (linked && other) {
+    text = `Show follows “${other}” · SoundSwitch has “${status.name}”`
+    short = 'SoundSwitch: other project'
+    about = `This show follows the SoundSwitch project “${other}”. SoundSwitch has “${status.name}” open, so nothing is synced.`
+  } else if (linked && notUsed) {
+    text = `SoundSwitch: ${status.name} · not used by this show`
+    short = 'SoundSwitch: not used'
+    about = 'This show was made without SoundSwitch, so SoundSwitch patch changes are not brought in.'
+  } else if (linked) {
+    text = link?.include ? `SoundSwitch: ${status.name} · ${inShow} of ${status.fixtures.length} fixtures` : `SoundSwitch: ${status.name} · ${status.fixtures.length} fixtures`
+    short = `SoundSwitch: ${status.fixtures.length}`
     tone = 'good'
-    title = `${status.project}\nFound because it is ${status.how}.${status.hidden ? `\n${status.hidden} fixture(s) left out by soundswitch-exclude.json.` : ''}`
+    about = `${status.project}\nFound because it is ${status.how}.${status.hidden ? `\n${status.hidden} fixture(s) left out of the show.` : ''}`
   } else if (status?.state === 'not found') {
     text = 'SoundSwitch: no project found'
+    short = 'SoundSwitch: none'
+    about = 'Open a project in SoundSwitch, or choose one.'
   } else if (status?.state === 'error') {
     text = `SoundSwitch: ${status.error}`
+    short = 'SoundSwitch: error'
     tone = 'bad'
+    about = status.error ?? "Something went wrong reading the SoundSwitch project."
   }
+  const run = (action: () => void) => () => (close(), action())
   return (
-    <div className="group" data-tour="soundswitch">
-      <div className={`status ${tone}`} title={title}>
-        {text}
-      </div>
-      <label className="auto" title="Update the rig whenever the SoundSwitch patch changes">
-        <input type="checkbox" checked={autoSync} onChange={(e) => setAutoSync(e.target.checked)} /> Auto
-      </label>
-      {!autoSync && status?.state === 'linked' && <button onClick={syncNow}>Sync</button>}
-      <button className="quiet" onClick={() => window.api?.refreshSoundSwitch()} title="Find the project SoundSwitch has open">
-        Find
+    <>
+      <button
+        data-tour="soundswitch"
+        className={`status pill ${tone} ${at ? 'on' : ''}`}
+        title={`${text}\n${about}\nClick for SoundSwitch options.`}
+        onClick={(e) => {
+          if (at) return close()
+          const r = e.currentTarget.getBoundingClientRect()
+          setAt({ x: r.left, y: r.bottom + 4 })
+        }}
+      >
+        <span className="full">{text}</span>
+        <span className="short">{short}</span>
+        <span className="caret"> ▾</span>
       </button>
-      <button className="quiet" onClick={() => window.api?.chooseSoundSwitchProject()}>
-        Choose…
-      </button>
-    </div>
+      {at && (
+        <MenuShell at={at} onClose={close}>
+          <div className="menu-title wrap">{about}</div>
+          {linked && !notUsed && !other && (
+            <MenuItem
+              label="Sync automatically"
+              check={autoSync ? '✓' : ''}
+              title="Keep this show's patch in step with SoundSwitch whenever it changes there"
+              onClick={() => setAutoSync(!autoSync)}
+            />
+          )}
+          {linked && !notUsed && !other && !autoSync && <MenuItem label="Sync now" title="Bring in SoundSwitch's patch changes once" onClick={run(syncNow)} />}
+          {linked && notUsed && (
+            <MenuItem label={`Follow “${status.name}”`} title="Bring this SoundSwitch project's fixtures into this show and follow its patch" onClick={run(() => followSoundSwitch(status.name))} />
+          )}
+          <MenuItem label="New show from SoundSwitch…" title="Make a show from a SoundSwitch project, choosing its fixtures" onClick={run(() => useWizards.getState().openNewShow())} />
+          <hr />
+          <MenuItem label="Find the open project again" title="Look again for the project SoundSwitch has open" onClick={run(() => window.api?.refreshSoundSwitch())} />
+          <MenuItem label="Choose a project…" title="Pick a SoundSwitch project (.ssproj) yourself" onClick={run(() => window.api?.chooseSoundSwitchProject())} />
+        </MenuShell>
+      )}
+    </>
   )
 }

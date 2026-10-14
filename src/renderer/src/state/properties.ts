@@ -55,10 +55,11 @@ export const FIXTURE_PROPERTIES: Array<{ section: string; properties: PropertyDe
   {
     section: 'Fixture',
     properties: [
-      { key: 'name', label: 'Name', kind: 'text', get: (f) => f.name, set: (f, name) => ({ ...f, name }) },
+      { key: 'name', label: 'Name', hint: 'What this fixture is called in the lists and the DMX map', kind: 'text', get: (f) => f.name, set: (f, name) => ({ ...f, name }) },
       {
         key: 'type',
         label: 'Type',
+        hint: 'The kind of fixture and its DMX mode: how many channels and what each one does',
         kind: 'select',
         // A getter, so types imported later (from SoundSwitch) show up too.
         get options() {
@@ -86,6 +87,7 @@ export const FIXTURE_PROPERTIES: Array<{ section: string; properties: PropertyDe
       {
         key: 'address',
         label: 'Address',
+        hint: 'The first DMX channel it listens on. Copies that share an address mirror each other on purpose',
         kind: 'number',
         min: 1,
         max: 512,
@@ -115,6 +117,7 @@ export const FIXTURE_PROPERTIES: Array<{ section: string; properties: PropertyDe
       {
         key: 'mounting',
         label: 'Mounting',
+        hint: 'Hanging: upside down under a truss. Upright: on a totem, a stand or the floor',
         kind: 'select',
         options: [
           { value: 'hanging', label: 'Hanging (truss)' },
@@ -163,6 +166,7 @@ export const FIXTURE_PROPERTIES: Array<{ section: string; properties: PropertyDe
       {
         key: 'invertTilt',
         label: 'Invert tilt',
+        hint: 'Same DMX, tilts the opposite way: for fixtures mounted the other way round',
         kind: 'boolean',
         get: (f) => !!f.invertTilt,
         set: (f, invertTilt) => ({ ...f, invertTilt })

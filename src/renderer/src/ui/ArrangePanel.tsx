@@ -6,6 +6,7 @@ import { useState } from 'react'
 import { alignFixtures, autoPlaceFixtures, distributeFixtures, duplicateArray, mirrorFixtures, selectSameType, spreadEven, type Axis } from '../state/commands'
 import type { Shape, Where } from '../model/layout'
 import type { Vec3 } from '../model/project'
+import { Section } from './Section'
 
 const AXES: Array<{ axis: Axis; name: string; ends: [string, string, string] }> = [
   { axis: 0, name: 'Left–right', ends: ['Left', 'Centre', 'Right'] },
@@ -23,8 +24,7 @@ export function ArrangePanel({ ids }: { ids: string[] }) {
   const several = ids.length > 1
 
   return (
-    <fieldset className="arrange">
-      <legend>Arrange</legend>
+    <Section id="fixture:arrange" title="More arranging" className="arrange" hint="Align, spread, mirror, distribute in shapes and duplicate in a row">
       {AXES.map(({ axis, name, ends }) => (
         <div key={axis} className="arrange-row">
           <span className="label">{name}</span>
@@ -52,7 +52,7 @@ export function ArrangePanel({ ids }: { ids: string[] }) {
         <span className="label">Distribute evenly</span>
         <div className="seg small">
           {(['line', 'arc', 'circle', 'grid'] as Shape[]).map((sh) => (
-            <button key={sh} className={shape === sh ? 'on' : ''} onClick={() => setShape(sh)}>
+            <button key={sh} className={shape === sh ? 'on' : ''} onClick={() => setShape(sh)} title={{ line: 'A straight row', arc: 'A gentle curve, facing the middle', circle: 'A ring', grid: 'Rows and columns' }[sh]}>
               {sh[0].toUpperCase() + sh.slice(1)}
             </button>
           ))}
@@ -103,8 +103,8 @@ export function ArrangePanel({ ids }: { ids: string[] }) {
         <label className="check" title="Off: copies share the original's patch and mirror it. On: each gets free addresses.">
           <input type="checkbox" checked={ownPatch} onChange={(e) => setOwnPatch(e.target.checked)} /> Own patch
         </label>
-        <button onClick={() => duplicateArray(ids, count, offset, ownPatch)}>Duplicate</button>
+        <button onClick={() => duplicateArray(ids, count, offset, ownPatch)} title="Make the copies, each moved by the offset from the one before">Duplicate</button>
       </div>
-    </fieldset>
+    </Section>
   )
 }
