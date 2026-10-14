@@ -121,5 +121,8 @@ export function commandForKey(e: KeyboardEvent): string | null {
   if (key === 'v') return 'toolSelect'
   if (key === 'w') return 'toolMove'
   if (key === 'o') return 'toolOrbit'
-  return { '1': 'viewPerspective', '2': 'viewTop', '3': 'viewFront', '4': 'viewLeft', '5': 'viewRight', '6': 'viewUp' }[e.key] ?? null
+  // Views are Shift+1 to Shift+6, so typing a number never moves the camera.
+  // (e.code, not e.key: with Shift, "1" arrives as "!" on most keyboards.)
+  if (!e.shiftKey || e.altKey) return null
+  return ({ Digit1: 'viewPerspective', Digit2: 'viewTop', Digit3: 'viewFront', Digit4: 'viewLeft', Digit5: 'viewRight', Digit6: 'viewUp' } as Record<string, string>)[e.code] ?? null
 }

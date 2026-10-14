@@ -44,7 +44,7 @@ export const TOURS: Tour[] = [
       { target: 'left-tabs', title: 'Fixtures, Library and Objects', body: 'Fixtures lists the lights in your show, grouped by type (or SoundSwitch group, or patch): click a group’s name to select it all and edit it together, or fold it away. Library has hundreds of real fixtures to add. Objects has stages, totems, truss, speakers, furniture and more.', prepare: leftTab('fixtures') },
       { target: 'viewport', title: 'The 3D view', body: 'Click something to select it; drag it to move it. Drag on empty floor to select several. Hold Space and drag to look around, and scroll to zoom. Right-click anything for its actions.' },
       { target: 'tools', title: 'Select, Move and Orbit', body: 'Select (V) clicks and drags things. Move (W) adds arrows for exact moves and going up and down. Orbit (O) turns the mouse into the camera.' },
-      { target: 'views', title: 'Camera views', body: 'Jump to a perspective, top, front, side or ceiling view (keys 1 to 6). Focus (F) frames whatever is selected.' },
+      { target: 'views', title: 'Camera views', body: 'Jump to a perspective, top, front, side or ceiling view (Shift+1 to Shift+6). Focus (F) frames whatever is selected.' },
       { target: 'navpad', title: 'Getting around without a mouse wheel', body: 'Zoom in and out, turn around the show, move left, right, forward and back, and go up and down. Hold a button to keep moving; ⌂ goes back to the starting view. The keyboard works too: arrows turn, Shift+arrows move, + and − zoom, Home goes back.' },
       { target: 'inspector', title: 'The inspector', body: 'Everything about what you selected: name, patch, how it is mounted, sizes, and buttons to move and line things up. Click a section’s title to fold it away. Select several to change them all at once. If two fixtures use the same channels, it says so here, with a button to fix it.' },
       { target: 'bottom', title: 'Faders and the DMX map', body: 'Test a fixture with faders, play a demo, or see where every fixture sits on the DMX channels.' },
@@ -113,7 +113,7 @@ export const TOURS: Tour[] = [
       { target: 'haze', title: 'Haze', body: 'More haze makes the beams show up in the air.', prepare: panels },
       { target: 'room', title: 'The room', body: 'How dark the room is (dark club to house lights), its colour, and the ceiling.' },
       { target: 'cameras', title: 'Cameras', body: 'Store a view you like and come back to it. Stored views are saved with the show.' },
-      { target: 'views', title: 'Quick views', body: 'Perspective, top, front, sides and ceiling, keys 1 to 6.' },
+      { target: 'views', title: 'Quick views', body: 'Perspective, top, front, sides and ceiling, Shift+1 to Shift+6.' },
       { target: 'image', title: 'Save a picture', body: 'Saves exactly what the 3D view shows as an image (⇧⌘E), for a client or the crew.' },
       { target: 'fullview', title: 'Full view', body: 'Hides the panels so the 3D view fills the window, for presenting (⇧⌘F).' }
     ]

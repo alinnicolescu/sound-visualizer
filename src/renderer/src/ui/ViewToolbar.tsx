@@ -12,12 +12,12 @@ import { useViewSettings } from '../state/viewSettings'
 import { notify } from '../state/notices'
 
 const PRESETS: Array<[ViewPreset, string, string]> = [
-  ['perspective', 'Persp', '1'],
-  ['top', 'Top', '2'],
-  ['front', 'Front', '3'],
-  ['left', 'Left', '4'],
-  ['right', 'Right', '5'],
-  ['up', 'Up', '6']
+  ['perspective', 'Persp', '⇧1'],
+  ['top', 'Top', '⇧2'],
+  ['front', 'Front', '⇧3'],
+  ['left', 'Left', '⇧4'],
+  ['right', 'Right', '⇧5'],
+  ['up', 'Up', '⇧6']
 ]
 
 const NO_CAMERAS: never[] = []
@@ -170,7 +170,7 @@ function RoomMenu() {
             </div>
           )}
           {fit.raised && room.ceiling && <p className="hint">Raised to {fit.ceiling} m so everything fits under it.</p>}
-          <p className="hint">The room grows to hold everything. Gobos and beam pools show on the floor, the back wall and the ceiling. Press Up (6) to look at the ceiling.</p>
+          <p className="hint">The room grows to hold everything. Gobos and beam pools show on the floor, the back wall and the ceiling. Press Up (Shift+6) to look at the ceiling.</p>
         </div>
       )}
     </div>

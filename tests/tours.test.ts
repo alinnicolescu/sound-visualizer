@@ -31,3 +31,14 @@ describe('guided tours', () => {
     for (const tour of TOURS) expect(menu.includes(`tour:${tour.id}`), tour.id).toBe(true)
   })
 })
+
+describe('view shortcuts', () => {
+  it('need Shift: a plain number never moves the camera', async () => {
+    const { commandForKey } = await import('../src/renderer/src/state/menuCommands')
+    const key = (k: string, code: string, shift: boolean) => ({ key: k, code, shiftKey: shift, metaKey: false, ctrlKey: false, altKey: false }) as KeyboardEvent
+    expect(commandForKey(key('1', 'Digit1', false))).toBeNull()
+    expect(commandForKey(key('3', 'Digit3', false))).toBeNull()
+    expect(commandForKey(key('!', 'Digit1', true))).toBe('viewPerspective')
+    expect(commandForKey(key('^', 'Digit6', true))).toBe('viewUp')
+  })
+})

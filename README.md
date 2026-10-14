@@ -147,7 +147,7 @@ With any tool, **hold Space** and drag to orbit, **Space+Shift** drag to pan, **
 
 | Do this | How |
 | --- | --- |
-| Views | Persp, Top, Front, Left, Right, Up buttons, or keys 1–6 |
+| Views | Persp, Top, Front, Left, Right, Up buttons, or Shift+1 to Shift+6 |
 | Frame the selection | **Focus** or F (Shift+F frames everything) |
 | Remember a camera | **Cameras ▾ → Store current view**. Stored views are saved with the project |
 | Move things | Drag them (a light on a stand brings the stand; Option-drag lifts it off), or use the Move tool's arrows. Snaps to 5 cm, one undo step per drag |
@@ -155,7 +155,7 @@ With any tool, **hold Space** and drag to orbit, **Space+Shift** drag to pan, **
 | Save a picture | **Image** or Shift+Cmd+E |
 | Only the stage | **Full view** or Shift+Cmd+F |
 
-| Look at the ceiling | **Up** or key 6. You can also orbit right round and look up from anywhere |
+| Look at the ceiling | **Up** or Shift+6. You can also orbit right round and look up from anywhere |
 | Room light | **Room ▾**: brightness (dark club to house lights), colour, quick presets, ceiling on/off and height. Saved with the project |
 
 **Gobos and pools.** Every beam lights the floor, the stage, the back wall and the ceiling where it actually lands, with its colour, its gobo (the fixture's real wheel slot, from its fixture data), gobo rotation from its rotation channel, and prism copies. Beams stop at the ceiling, the floor and the back wall. Gobo shapes are representative (fixture data doesn't include the gobo images), but each slot always draws the same shape, so you can tell them apart. Up to 32 of the brightest beams light the room at once.
