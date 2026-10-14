@@ -4,7 +4,7 @@
 
 | You have | You get | On someone else's Mac |
 | --- | --- | --- |
-| Nothing (default) | Ad-hoc signed test build | "Can't be opened because Apple cannot check it": right-click the app ▸ **Open**, or System Settings ▸ Privacy & Security ▸ **Open Anyway** |
+| Nothing (default) | Ad-hoc signed build | "Can't be opened because Apple cannot check it": run `xattr -cr "/Applications/Sound Visualizer.app"` in Terminal once, or System Settings ▸ Privacy & Security ▸ **Open Anyway** |
 | A Developer ID certificate | Signed with your name, hardened runtime | Still warns: not notarized |
 | Certificate **and** notarization credentials | Signed, notarized by Apple, ticket stapled | Opens normally, no warnings. This is the one to share |
 
@@ -29,6 +29,25 @@ npm run dist:mac
 ```
 
 It checks types, runs the tests, builds, signs every binary with the hardened runtime, sends the app to Apple's notary service (a few minutes), staples the ticket, and runs the checks below. Share `dist/Sound-Visualizer-<version>-mac.dmg` (or the `.zip`).
+
+## Releasing from GitHub (no Mac needed)
+
+`.github/workflows/release.yml` builds the app on GitHub's own Macs and attaches it to a release:
+
+1. On the repository page: **Releases ▸ Draft a new release**.
+2. **Choose a tag** ▸ type a new one, like `v1.2.0` (bump `version` in `package.json` to match first, so the file is named right).
+3. Write what changed (or press **Generate release notes**), then **Publish release**.
+4. Watch it under **Actions**. In about 10 minutes the release has the `.dmg`, the `.zip`, the check results and install notes.
+
+**Actions ▸ Release the Mac app ▸ Run workflow** does the same without drafting a release: it makes one named after the version in `package.json` if there isn't one yet.
+
+To have GitHub sign and notarize it too, add these under **Settings ▸ Secrets and variables ▸ Actions** (the workflow uses them only when they're there):
+
+| Secret | What it is |
+| --- | --- |
+| `MAC_CERTIFICATE_P12_BASE64` | Your Developer ID Application certificate exported from Keychain Access as a `.p12`, then `base64 -i cert.p12 \| pbcopy` |
+| `MAC_CERTIFICATE_PASSWORD` | The password you gave the `.p12` |
+| `APPLE_ID`, `APPLE_APP_SPECIFIC_PASSWORD`, `APPLE_TEAM_ID` | For notarization (an app-specific password from appleid.apple.com) |
 
 ## What the checks are
 

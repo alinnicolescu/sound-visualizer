@@ -1,7 +1,7 @@
 /**
- * Actions on set pieces (totems, truss, stages…) and on how fixtures attach to them:
- *  - the floating bar and right-click menu for a selected set piece,
- *  - the set piece inspector (sizes in feet, with the sizes the gear comes in),
+ * Actions on objects (totems, truss, stages…) and on how fixtures attach to them:
+ *  - the floating bar and right-click menu for a selected object,
+ *  - the object inspector (sizes in feet, with the sizes the gear comes in),
  *  - "Attached to …" for fixtures, and the list of places a fixture can go.
  */
 import { useEffect, useState } from 'react'
@@ -22,7 +22,9 @@ import { FT, mountPoints, nearestOn, paramsOf, STRUCTURE_KINDS, toLocal, TRUSS_O
 import { roomFit } from '../model/physics'
 import { roomOf, type Fixture } from '../model/project'
 import { view } from '../state/viewBus'
-import { Icon } from './SetPanel'
+import { Icon } from './ObjectsPanel'
+import { MenuItem, MenuShell } from './Menu'
+import { ArrangeButtons, ArrangeMenu } from './ArrangeMenu'
 
 function useChosenStructures(): Structure[] {
   const structures = useStore((s) => s.project.structures)
@@ -33,7 +35,7 @@ function useChosenStructures(): Structure[] {
   return (structures ?? []).filter((s) => selection.includes(s.id))
 }
 
-/** The floating set piece editor in the 3D view: open or not. */
+/** The floating object editor in the 3D view: open or not. */
 export const useStructureEditor = create<{ open: boolean; set(open: boolean): void }>((set) => ({ open: false, set: (open) => set({ open }) }))
 
 export function StructureHud() {
@@ -43,11 +45,11 @@ export function StructureHud() {
   const setEditing = useStructureEditor((s) => s.set)
   if (!chosen.length) return null
   const ids = chosen.map((s) => s.id)
-  const title = chosen.length === 1 ? chosen[0].name : `${chosen.length} set pieces`
+  const title = chosen.length === 1 ? chosen[0].name : `${chosen.length} objects`
   // Quick heights for totems, stands and tube stands: 4 ft to 6 ft in one click.
   const sameKind = chosen.every((s) => s.kind === chosen[0].kind)
   const heightField = sameKind ? STRUCTURE_KINDS[chosen[0].kind].fields.find((f) => f.key === 'height' && f.presets) : undefined
-  const heights = heightField && ['totem', 'flexstand', 'tubeStand', 'tbar'].includes(chosen[0].kind) ? heightField : undefined
+  const heights = heightField && ['totem', 'flexstand', 'tubeStand', 'tbar', 'micStand', 'speakerOnPole', 'speakerOnSub'].includes(chosen[0].kind) ? heightField : undefined
   return (
     <div className="fixture-hud" onPointerDown={(e) => e.stopPropagation()}>
       <span className="hud-name" title={title}>
@@ -79,8 +81,8 @@ export function StructureHud() {
         className="hud-btn"
         title="More actions (or right-click it)"
         onClick={(e) => {
-          const rect = (e.currentTarget.closest('.viewport-wrap') as HTMLElement).getBoundingClientRect()
-          openMenu(e.clientX - rect.left, e.clientY - rect.top + 12)
+          const r = e.currentTarget.getBoundingClientRect()
+          openMenu(r.left, r.bottom + 4)
         }}
       >
         ⋯
@@ -108,38 +110,41 @@ export function StructureMenu() {
   }
   const attached = fixtures.filter((f) => f.mount && ids.includes(f.mount.structure))
   return (
-    <>
-      <div className="menu-backdrop" onPointerDown={close} onContextMenu={(e) => (e.preventDefault(), close())} />
-      <div className="fixture-menu" style={{ left: at.x, top: at.y }}>
-        <div className="menu-title">{chosen.length === 1 ? chosen[0].name : `${chosen.length} set pieces`}</div>
-        <MenuItem label="Turn 90° left" onClick={run(() => rotateStructures(ids, 90))} />
-        <MenuItem label="Turn 90° right" onClick={run(() => rotateStructures(ids, -90))} />
-        <MenuItem label="Duplicate (with its fixtures)" onClick={run(() => duplicateStructures(ids))} />
-        {attached.length > 0 && <MenuItem label={`Select the ${attached.length} fixture${attached.length > 1 ? 's' : ''} on it`} onClick={run(() => useStore.getState().select(attached.map((f) => f.id)))} />}
-        {attached.length > 0 && <MenuItem label="Take the fixtures off" onClick={run(() => detachFixtures(attached.map((f) => f.id)))} />}
-        <hr />
-        <MenuItem label="Focus on it" onClick={run(() => view.focus(ids))} />
-        <hr />
-        <MenuItem label="Delete" danger onClick={run(() => deleteStructures(ids))} />
-      </div>
-    </>
+    <MenuShell at={at} onClose={close}>
+      <div className="menu-title">{chosen.length === 1 ? chosen[0].name : `${chosen.length} objects`}</div>
+      <MenuItem label="Edit size and options…" onClick={run(() => openEditor(ids))} />
+      <MenuItem label="Turn 90° left" onClick={run(() => rotateStructures(ids, 90))} />
+      <MenuItem label="Turn 90° right" onClick={run(() => rotateStructures(ids, -90))} />
+      <MenuItem label="Duplicate (with its fixtures)" onClick={run(() => duplicateStructures(ids))} />
+      <hr />
+      <ArrangeMenu ids={ids} run={run} />
+      {attached.length > 0 && (
+        <>
+          <hr />
+          <MenuItem label={`Select it with the ${attached.length} fixture${attached.length > 1 ? 's' : ''} on it`} onClick={run(() => useStore.getState().select([...ids, ...attached.map((f) => f.id)]))} />
+          <MenuItem label={`Select just the fixture${attached.length > 1 ? 's' : ''} on it`} onClick={run(() => useStore.getState().select(attached.map((f) => f.id)))} />
+          <MenuItem label="Take the fixtures off" onClick={run(() => detachFixtures(attached.map((f) => f.id)))} />
+        </>
+      )}
+      <hr />
+      <MenuItem label="Focus on it" onClick={run(() => view.focus(ids))} />
+      <hr />
+      <MenuItem label="Delete" danger onClick={run(() => deleteStructures(ids))} />
+    </MenuShell>
   )
 }
 
-function MenuItem({ label, onClick, danger }: { label: string; onClick: () => void; danger?: boolean }) {
-  return (
-    <button className={`menu-item ${danger ? 'danger' : ''}`} onClick={onClick}>
-      <span className="menu-check" />
-      <span className="menu-label">{label}</span>
-    </button>
-  )
+/** Open the object editor: the inspector lights up, or the floating editor in full view. */
+function openEditor(ids: string[]) {
+  useStore.getState().select(ids)
+  useStructureEditor.getState().set(true)
 }
 
 // ---------------------------------------------------------------------------
 // Inspector
 // ---------------------------------------------------------------------------
 
-/** Edit a set piece right in the 3D view: the same fields as the inspector, in a panel beside it. */
+/** Edit an object right in the 3D view: the same fields as the inspector, in a panel beside it. */
 export function StructureEditor() {
   const chosen = useChosenStructures()
   const open = useStructureEditor((s) => s.open)
@@ -180,7 +185,7 @@ export function StructureInspector({ chosen }: { chosen: Structure[] }) {
     <div className={`inspector ${editing ? 'editing' : ''}`}>
       <h2 className="with-icon">
         <Icon kind={first.kind} />
-        {chosen.length === 1 ? first.name : `${chosen.length} set pieces`}
+        {chosen.length === 1 ? first.name : `${chosen.length} objects`}
       </h2>
       <p className="hint">{info.description}</p>
       {chosen.length === 1 && <NameField structure={first} />}
@@ -194,15 +199,16 @@ export function StructureInspector({ chosen }: { chosen: Structure[] }) {
       )}
       <fieldset>
         <legend>Place</legend>
-        <NumberField label="Left-right (ft)" value={chosen.length === 1 ? ft(first.position[0]) : null} onCommit={(v) => updateStructures(ids, 'Move set piece', (s) => ({ ...s, position: [v * FT, s.position[1], s.position[2]] }))} />
-        <NumberField label="Front-back (ft)" value={chosen.length === 1 ? ft(first.position[2]) : null} onCommit={(v) => updateStructures(ids, 'Move set piece', (s) => ({ ...s, position: [s.position[0], s.position[1], v * FT] }))} />
-        <NumberField label="Turn (°)" value={chosen.every((s) => s.rotation === first.rotation) ? first.rotation : null} onCommit={(v) => updateStructures(ids, 'Turn set piece', (s) => ({ ...s, rotation: v }))} />
+        <NumberField label="Left-right (ft)" value={chosen.length === 1 ? ft(first.position[0]) : null} onCommit={(v) => updateStructures(ids, 'Move object', (s) => ({ ...s, position: [v * FT, s.position[1], s.position[2]] }))} />
+        <NumberField label="Front-back (ft)" value={chosen.length === 1 ? ft(first.position[2]) : null} onCommit={(v) => updateStructures(ids, 'Move object', (s) => ({ ...s, position: [s.position[0], s.position[1], v * FT] }))} />
+        <NumberField label="Turn (°)" value={chosen.every((s) => s.rotation === first.rotation) ? first.rotation : null} onCommit={(v) => updateStructures(ids, 'Turn object', (s) => ({ ...s, rotation: v }))} />
         <div className="field">
           <span className="label">Stands on</span>
           <span className="sub">{first.position[1] > 0.001 ? `something ${ft(first.position[1])} ft up (a stage or table)` : 'the floor'}</span>
         </div>
       </fieldset>
-      {fit.raised && <p className="hint">The ceiling has been raised to {ft(fit.ceiling)} ft so the set fits.</p>}
+      <ArrangeButtons ids={ids} />
+      {fit.raised && <p className="hint">The ceiling has been raised to {ft(fit.ceiling)} ft so everything fits.</p>}
       {chosen.length === 1 && <MountList structure={first} />}
       {attached.length > 0 && (
         <fieldset>
@@ -251,7 +257,7 @@ function MountList({ structure }: { structure: Structure }) {
 function NameField({ structure }: { structure: Structure }) {
   const [draft, setDraft] = useState(structure.name)
   useEffect(() => setDraft(structure.name), [structure.name])
-  const commit = () => draft.trim() && draft !== structure.name && updateStructures([structure.id], 'Rename set piece', (s) => ({ ...s, name: draft.trim() }))
+  const commit = () => draft.trim() && draft !== structure.name && updateStructures([structure.id], 'Rename object', (s) => ({ ...s, name: draft.trim() }))
   return (
     <label className="field">
       <span className="label">Name</span>
@@ -334,11 +340,24 @@ function ParamInput({ field, chosen }: { field: ParamField; chosen: Structure[] 
           <span className="label">{field.label}</span>
           <select value={(value as string) ?? ''} onChange={(e) => setStructureParams(ids, { cover: e.target.value as Cover })}>
             {value === null && <option value="">Mixed</option>}
-            <option value="none">None</option>
-            <option value="white">White</option>
-            <option value="black">Black</option>
+            <option value="none">{field.coverNames?.none ?? 'None'}</option>
+            <option value="white">{field.coverNames?.white ?? 'White'}</option>
+            <option value="black">{field.coverNames?.black ?? 'Black'}</option>
           </select>
         </label>
+      )
+    case 'choice':
+      return (
+        <div className="field">
+          <span className="label">{field.label}</span>
+          <div className="presets">
+            {(field.options ?? []).map(([label, v]) => (
+              <button key={label} className={`mini ${value === v ? 'on' : ''}`} onClick={() => setStructureParams(ids, { [field.key]: v })}>
+                {label}
+              </button>
+            ))}
+          </div>
+        </div>
       )
     case 'truss':
       return (
@@ -358,7 +377,7 @@ function ParamInput({ field, chosen }: { field: ParamField; chosen: Structure[] 
 }
 
 // ---------------------------------------------------------------------------
-// Fixtures on set pieces
+// Fixtures on objects
 // ---------------------------------------------------------------------------
 
 /** Places a fixture could attach, nearest first: "Top plate of Totem 6 ft", "Under Main truss". */

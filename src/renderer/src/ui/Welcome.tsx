@@ -60,18 +60,18 @@ export function Welcome() {
       )
     },
     {
-      title: 'Build the set',
+      title: 'Build the room',
       art: <Art kind="set" />,
       body: (
         <ul>
           <li>
-            <b>Library</b>: hundreds of fixtures, Both Lighting included. Drag one into the view.
+            <b>Library</b>: hundreds of real fixtures. Drag one into the view.
           </li>
           <li>
-            <b>Set</b>: stages, totems, FLEXstands, tube stands, truss, booths, pipe & drape. Click a piece to resize it.
+            <b>Objects</b>: stages, totems and stands, truss, speakers and subs, DJ and band gear, tables, chairs, walls, screens, even a crowd. Click one to resize it.
           </li>
           <li>
-            With the <b>Move</b> tool (W), drag a fixture onto a totem or truss and it snaps on. Hold <b>Space</b> and drag to look around.
+            Drag anything to move it; a light on a stand brings the stand. Drag a fixture onto a totem or truss and it snaps on. Right-click to line things up. Hold <b>Space</b> and drag to look around.
           </li>
         </ul>
       )

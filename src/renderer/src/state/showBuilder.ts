@@ -2,7 +2,7 @@
  * Build a show by describing it: "two Both Lighting 100 W moving heads on 6 ft
  * totems, one each side of the stage, the right one with pan inverted".
  *
- * The builder is a small set of tools (search the library, add a set piece,
+ * The builder is a small set of tools (search the library, add an object,
  * add fixtures onto it, set invert/group, arrange, look at the scene). Claude
  * calls them through the Anthropic Messages API (tool use); without an API key,
  * a simple built-in reader understands the common requests ("N <fixtures> on
@@ -161,7 +161,7 @@ const KINDS = Object.keys(STRUCTURE_KINDS) as StructureKind[]
 export const BUILDER_TOOLS = [
   {
     name: 'get_scene',
-    description: 'The current set pieces (stages, totems, truss…, with their mount points) and fixtures (with patch, position, what they are attached to). Positions in feet.',
+    description: 'The current objects (stages, totems, truss…, with their mount points) and fixtures (with patch, position, what they are attached to). Positions in feet.',
     input_schema: { type: 'object', properties: {} }
   },
   {
@@ -172,7 +172,7 @@ export const BUILDER_TOOLS = [
   {
     name: 'add_structure',
     description:
-      'Add a set piece. Kinds: ' +
+      'Add an object. Kinds: ' +
       KINDS.map((k) => `${k} (${STRUCTURE_KINDS[k].label})`).join(', ') +
       '. Sizes in feet; leave out for the standard size. Place it with x_ft/z_ft, or beside/on another piece (e.g. a totem to the left of the stage, a DJ booth on the stage). It always stands on the floor or on the stage/table below it.',
     input_schema: {
@@ -207,7 +207,7 @@ export const BUILDER_TOOLS = [
   {
     name: 'add_fixtures',
     description:
-      'Add fixtures from the library, patched into free DMX addresses. Put them on a set piece with `on` (a totem or FLEXstand top, under a truss, a totem front clamp, a booth facade; several on one bar are spaced along it; a top plate takes one fixture, so add one per totem), or at a position.',
+      'Add fixtures from the library, patched into free DMX addresses. Put them on an object with `on` (a totem or FLEXstand top, under a truss, a totem front clamp, a booth facade; several on one bar are spaced along it; a top plate takes one fixture, so add one per totem), or at a position.',
     input_schema: {
       type: 'object',
       properties: {
@@ -224,7 +224,7 @@ export const BUILDER_TOOLS = [
   },
   {
     name: 'mount_fixtures',
-    description: 'Attach existing fixtures to a set piece.',
+    description: 'Attach existing fixtures to an object.',
     input_schema: { type: 'object', properties: { fixture_ids: { type: 'array', items: { type: 'string' } }, structure_id: { type: 'string' }, point: { type: 'string' } }, required: ['fixture_ids', 'structure_id'] }
   },
   {
@@ -246,7 +246,7 @@ export const BUILDER_TOOLS = [
   },
   {
     name: 'move',
-    description: 'Move fixtures or set pieces to a position (feet). Moving a fixture by hand takes it off what it was attached to.',
+    description: 'Move fixtures or objects to a position (feet). Moving a fixture by hand takes it off what it was attached to.',
     input_schema: { type: 'object', properties: { ids: { type: 'array', items: { type: 'string' } }, x_ft: { type: 'number' }, z_ft: { type: 'number' }, height_ft: { type: 'number' } }, required: ['ids'] }
   },
   {
@@ -260,12 +260,12 @@ export const BUILDER_TOOLS = [
   },
   {
     name: 'delete',
-    description: 'Delete fixtures or set pieces by id. Use clear to start from an empty room.',
+    description: 'Delete fixtures or objects by id. Use clear to start from an empty room.',
     input_schema: { type: 'object', properties: { ids: { type: 'array', items: { type: 'string' } } }, required: ['ids'] }
   },
   {
     name: 'clear',
-    description: 'Remove all fixtures, all set pieces, or everything.',
+    description: 'Remove all fixtures, all objects, or everything.',
     input_schema: { type: 'object', properties: { what: { type: 'string', enum: ['fixtures', 'structures', 'everything'] } }, required: ['what'] }
   },
   {
@@ -302,7 +302,7 @@ function placeBeside(input: Input, kind: StructureKind, params: StructureParams)
     return x === undefined && z === undefined ? undefined : [m(x ?? 0), 0, m(z ?? 0)]
   }
   const target = structures().find((s) => s.id === b.structure_id)
-  if (!target) throw new Error(`No set piece "${String(b.structure_id)}"`)
+  if (!target) throw new Error(`No object "${String(b.structure_id)}"`)
   const [tw, td] = footprint(target)
   const [w, d] = footprint({ id: '?', kind, name: '', position: [0, 0, 0], rotation: 0, params })
   const gap = m(num(b.gap_ft) ?? 1)
@@ -371,7 +371,7 @@ export function runTool(lib: LibraryAccess | null, call: ToolCall): unknown {
       let mount: { structure: string; point: string } | undefined
       if (on) {
         const s = structures().find((x) => x.id === on.structure_id)
-        if (!s) throw new Error(`No set piece "${String(on.structure_id)}"`)
+        if (!s) throw new Error(`No object "${String(on.structure_id)}"`)
         const points = mountPoints(s)
         const wanted = on.point ? String(on.point) : points.some((p) => p.kind === 'top') && type.body === 'movingHead' ? 'top' : points.some((p) => p.kind === 'under') ? 'under' : points[0]?.id
         const mp = points.find((p) => p.id === wanted) ?? points.find((p) => p.kind === wanted)
@@ -390,7 +390,7 @@ export function runTool(lib: LibraryAccess | null, call: ToolCall): unknown {
       return {
         added: list.map((f) => ({ id: f.id, name: f.name, universe: f.universe + 1, address: f.address, channels: type.channels.length, on: f.mount ? `${f.mount.structure}/${f.mount.point}` : null })),
         mode: entry.modes[modeIndex].name,
-        ...(notMounted ? { note: `${notMounted} could not go on the same point (a top plate holds one fixture): add a set piece for each.` } : {})
+        ...(notMounted ? { note: `${notMounted} could not go on the same point (a top plate holds one fixture): add an object for each.` } : {})
       }
     }
     case 'mount_fixtures': {
@@ -425,7 +425,7 @@ export function runTool(lib: LibraryAccess | null, call: ToolCall): unknown {
       const fx = fixtures().filter((f) => list.includes(f.id)).map((f) => f.id)
       if (fx.length) updateFixtures(fx, 'Move fixtures', (f) => ({ ...f, position: pos(f.position) }))
       const st = structures().filter((s) => list.includes(s.id)).map((s) => s.id)
-      if (st.length) updateStructures(st, 'Move set pieces', (s) => ({ ...s, position: pos(s.position) }))
+      if (st.length) updateStructures(st, 'Move objects', (s) => ({ ...s, position: pos(s.position) }))
       return { moved: fx.length + st.length }
     }
     case 'arrange': {
@@ -570,7 +570,7 @@ The user describes a rig in plain words; you build it with the tools, then reply
 
 How the scene works:
 - Units are feet. x: left (negative) / right (positive) as the audience sees it; z: towards the back wall (negative) / towards the audience (positive); the floor is 0.
-- Set pieces (stages, totems, FLEXstands, truss, tables, DJ booths, pipe & drape, speakers) obey physics: they stand on the floor or on the stage/table under them. Fixtures attach to their mount points: a totem or FLEXstand top plate holds one fixture, truss bars hold several (spaced automatically), totems have a front clamp for washes, booths have a facade edge for bars.
+- Objects (stages, totems, FLEXstands, truss, tables, DJ booths, pipe & drape, speakers) obey physics: they stand on the floor or on the stage/table under them. Fixtures attach to their mount points: a totem or FLEXstand top plate holds one fixture, truss bars hold several (spaced automatically), totems have a front clamp for washes, booths have a facade edge for bars.
 - "One on each side of the stage": add one holder with beside {side: 'left'} and one with {side: 'right'} of the stage, then one fixture on each.
 - Pixel tubes (like Both Lighting 360 Tubes) go upright on tube stands (kind tubeStand, 2-8 ft), one tube per stand.
 - A moving head can stand upright (on a totem, FLEXstand, truss top or the floor) or hang under a truss.
@@ -624,7 +624,7 @@ export async function buildWithClaude(prompt: string, lib: LibraryAccess | null,
 function stepLabel(name: ToolName, input: Input): string {
   switch (name) {
     case 'search_library': return `Looking for “${String(input.query)}”`
-    case 'add_structure': return `Adding a ${STRUCTURE_KINDS[input.kind as StructureKind]?.label.toLowerCase() ?? 'set piece'}`
+    case 'add_structure': return `Adding a ${STRUCTURE_KINDS[input.kind as StructureKind]?.label.toLowerCase() ?? 'object'}`
     case 'add_fixtures': return `Adding ${num(input.count) ?? 1} fixture${(num(input.count) ?? 1) > 1 ? 's' : ''}`
     case 'mount_fixtures': return 'Attaching fixtures'
     case 'set_fixtures': return 'Setting up fixtures'

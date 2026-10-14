@@ -8,7 +8,7 @@ import { Viewport } from './three/Viewport'
 import { Toolbar } from './ui/Toolbar'
 import { FixtureList } from './ui/FixtureList'
 import { LibraryPanel } from './ui/LibraryPanel'
-import { SetPanel } from './ui/SetPanel'
+import { ObjectsPanel } from './ui/ObjectsPanel'
 import { NewShow } from './ui/NewShow'
 import { Welcome } from './ui/Welcome'
 import { useWizards, welcomeSeen } from './state/wizards'
@@ -113,11 +113,11 @@ export function App() {
             <button className={leftTab === 'library' ? 'tab active' : 'tab'} onClick={() => setLeftTab('library')} title="Browse and add fixtures (Cmd+L)">
               Library
             </button>
-            <button className={leftTab === 'set' ? 'tab active' : 'tab'} onClick={() => setLeftTab('set')} title="Totems, stands, truss, staging, tables, drape">
-              Set
+            <button className={leftTab === 'set' ? 'tab active' : 'tab'} onClick={() => setLeftTab('set')} title="Stands, truss, staging, speakers, furniture, walls and people">
+              Objects
             </button>
           </div>
-          <ErrorBoundary name={leftTab}>{leftTab === 'library' ? <LibraryPanel /> : leftTab === 'set' ? <SetPanel /> : <FixtureList />}</ErrorBoundary>
+          <ErrorBoundary name={leftTab}>{leftTab === 'library' ? <LibraryPanel /> : leftTab === 'set' ? <ObjectsPanel /> : <FixtureList />}</ErrorBoundary>
         </aside>
       )}
       <main className="center">

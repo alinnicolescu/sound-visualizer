@@ -11,11 +11,12 @@ import { addLibraryFixtures, addStructure, mountFixtures, moveFixtures, moveSele
 import { registerView, type ViewPreset } from '../state/viewBus'
 import { useLibrary } from '../state/library'
 import { DRAG_TYPE, type DragPayload } from '../ui/LibraryPanel'
-import { STRUCTURE_DRAG, type StructureDrag } from '../ui/SetPanel'
+import { STRUCTURE_DRAG, type StructureDrag } from '../ui/ObjectsPanel'
 import { StructureEditor, StructureHud, StructureMenu, useStructureEditor } from '../ui/StructureActions'
 import { ShowBuilder } from '../ui/ShowBuilder'
 import { roomFit, type RoomFit } from '../model/physics'
-import { mountPoints, nearestOn, pointAt, toWorld, type MountPoint, type Structure } from '../model/structures'
+import { mountPoints, nearestOn, pointAt, STRUCTURE_KINDS, toWorld, type MountPoint, type Structure } from '../model/structures'
+import { movingRoots, withRiders } from '../model/arrange'
 import { StructureRig, mountGuides } from './structures'
 import { ViewToolbar } from '../ui/ViewToolbar'
 import { Notices } from '../ui/Notices'
@@ -156,7 +157,7 @@ export function Viewport() {
         rigs.delete(id)
       }
     }
-    // --- And one StructureRig per set piece ---
+    // --- And one StructureRig per object ---
     const sets = new Map<string, StructureRig>()
     const syncSets = (project: Project, selection: string[]) => {
       const seen = new Set<string>()
@@ -223,17 +224,18 @@ export function Viewport() {
       previewMove(useStore.getState().selection, d, true)
     })
 
-    /** Show a move before it's made: the selection, and whatever is attached to moved set pieces. */
+    /** Show a move before it's made: the selection, and whatever is attached to it or standing on it. */
     const previewMove = (ids: string[], d: THREE.Vector3, vertical: boolean) => {
       const { project } = useStore.getState()
-      const movedSets = new Set((project.structures ?? []).filter((st) => ids.includes(st.id)).map((st) => st.id))
+      const roots = movingRoots(project, ids)
+      const moved = withRiders(project, roots)
       for (const st of project.structures ?? []) {
-        if (movedSets.has(st.id)) sets.get(st.id)?.root.position.set(st.position[0] + d.x, st.position[1], st.position[2] + d.z)
+        if (moved.structures.has(st.id)) sets.get(st.id)?.root.position.set(st.position[0] + d.x, st.position[1], st.position[2] + d.z)
       }
       for (const f of project.fixtures) {
-        const onMoved = f.mount && movedSets.has(f.mount.structure)
-        if (!ids.includes(f.id) && !onMoved) continue
-        const dy = vertical && !onMoved ? d.y : 0
+        const onMoved = !!f.mount && moved.structures.has(f.mount.structure)
+        if (!moved.fixtures.has(f.id) && !onMoved) continue
+        const dy = vertical && roots.fixtures.has(f.id) ? d.y : 0
         rigs.get(f.id)?.root.position.set(f.position[0] + d.x, Math.max(0, f.position[1] + dy), f.position[2] + d.z)
       }
     }
@@ -282,9 +284,11 @@ export function Viewport() {
     container.addEventListener('drop', onDrop)
 
     // --- Mouse tools -------------------------------------------------------------
-    // Select (default): click a fixture to select it, Shift-click to add or remove,
-    // drag on empty space to box-select. Move: the same, and dragging a fixture
-    // slides it across the floor (or along the truss); the arrows move it in 3D.
+    // Select and Move tools: click a fixture or object to select it, Shift-click
+    // to add or remove, drag on empty space to box-select (objects count when
+    // they're wholly inside). Drag anything selected to slide it across the floor,
+    // with what's on it; a fixture on a stand brings the stand (Option/Alt-drag
+    // lifts it off). Move also shows arrows for exact moves and going up and down.
     // Holding Space (or the Orbit tool) turns the mouse into the camera:
     // drag to orbit, Shift+drag to pan, Alt/Option+drag to zoom. The wheel always zooms.
     const raycaster = new THREE.Raycaster()
@@ -331,7 +335,7 @@ export function Viewport() {
       const x = clientX - rect.left
       const y = clientY - rect.top
       let best: string | undefined
-      // Over a set piece, only a fixture right under the pointer counts: the click is for the piece.
+      // Over an object, only a fixture right under the pointer counts: the click is for the piece.
       let bestD = pickStructure(clientX, clientY) ? 9 : 26
       for (const r of visible) {
         const s = screenOf(r.center())
@@ -347,7 +351,7 @@ export function Viewport() {
       else select([id])
     }
 
-    /** The set piece under the pointer, if any. */
+    /** The object under the pointer, if any. */
     const pickStructure = (clientX: number, clientY: number): string | undefined => {
       raycaster.setFromCamera(toNdc(clientX, clientY), camera)
       const hit = raycaster.intersectObjects([...sets.values()].map((r) => r.root), true).find((h) => h.object.userData.structureId)
@@ -443,7 +447,7 @@ export function Viewport() {
         const s = screenOf(r.center())
         return { x: s.x + rect.left, y: s.y + rect.top }
       }
-      // A set piece, or one of its mount points: "st-id" or "st-id/point".
+      // An object, or one of its mount points: "st-id" or "st-id/point".
       const [sid, pid] = id.split('/')
       const st = (useStore.getState().project.structures ?? []).find((x) => x.id === sid)
       if (!st) return null
@@ -506,27 +510,46 @@ export function Viewport() {
       if (e.button !== 0 || navigating() || gizmo.axis !== null) return
       const id = pick(e.clientX, e.clientY)
       const { selection, select } = useStore.getState()
-      const piece = id ? undefined : pickStructure(e.clientX, e.clientY)
+      let piece = id ? undefined : pickStructure(e.clientX, e.clientY)
+      // A stage or dance floor that isn't selected yet: drag draws a box (click still selects it).
+      const pieceKind = piece && (useStore.getState().project.structures ?? []).find((x) => x.id === piece)?.kind
+      if (piece && pieceKind && STRUCTURE_KINDS[pieceKind].ground && !selection.includes(piece)) {
+        gesture = { kind: 'box', x: e.clientX, y: e.clientY, id: piece, moved: false }
+        renderer.domElement.setPointerCapture(e.pointerId)
+        applyNav()
+        piece = undefined
+        return
+      }
       if (piece) {
-        // A set piece: click to select it; with the Move tool, drag it across the floor.
+        // An object: click to select it; with the Move tool, drag it across the floor.
         const st = (useStore.getState().project.structures ?? []).find((x) => x.id === piece)!
-        if (tool() === 'move') {
+        {
           if (!selection.includes(piece)) select(e.shiftKey ? [...selection, piece] : [piece])
           const plane = new THREE.Plane(new THREE.Vector3(0, 1, 0), -st.position[1])
           raycaster.setFromCamera(toNdc(e.clientX, e.clientY), camera)
           const from = raycaster.ray.intersectPlane(plane, new THREE.Vector3())
           gesture = { kind: from ? 'set' : 'click', x: e.clientX, y: e.clientY, id: piece, plane, from: from ?? undefined, delta: new THREE.Vector3(), moved: false }
-        } else {
-          gesture = { kind: 'click', x: e.clientX, y: e.clientY, id: piece, moved: false }
         }
         renderer.domElement.setPointerCapture(e.pointerId)
         applyNav()
         return
       }
-      if (tool() === 'move' && id) {
+      if (id) {
         // Drag the fixture: it slides on a level plane at its own height.
         if (!selection.includes(id)) select(e.shiftKey ? [...selection, id] : [id])
-        const fixture = useStore.getState().project.fixtures.find((f) => f.id === id)!
+        const { project } = useStore.getState()
+        const fixture = project.fixtures.find((f) => f.id === id)!
+        // On a stand or totem: the stand comes too (hold Option/Alt to lift the fixture off instead).
+        const carrier = fixture.mount && !e.altKey ? (project.structures ?? []).find((x) => x.id === fixture.mount!.structure && STRUCTURE_KINDS[x.kind].carrier) : undefined
+        if (carrier) {
+          const plane = new THREE.Plane(new THREE.Vector3(0, 1, 0), -carrier.position[1])
+          raycaster.setFromCamera(toNdc(e.clientX, e.clientY), camera)
+          const from = raycaster.ray.intersectPlane(plane, new THREE.Vector3())
+          gesture = { kind: from ? 'set' : 'click', x: e.clientX, y: e.clientY, id, plane, from: from ?? undefined, delta: new THREE.Vector3(), moved: false }
+          renderer.domElement.setPointerCapture(e.pointerId)
+          applyNav()
+          return
+        }
         const plane = new THREE.Plane(new THREE.Vector3(0, 1, 0), -fixture.position[1])
         raycaster.setFromCamera(toNdc(e.clientX, e.clientY), camera)
         const from = raycaster.ray.intersectPlane(plane, new THREE.Vector3())
@@ -542,7 +565,6 @@ export function Viewport() {
       const far = Math.hypot(e.clientX - gesture.x, e.clientY - gesture.y) > 4
       if (!far && !gesture.moved) return
       gesture.moved = true
-      if (gesture.kind === 'click') gesture.kind = 'box' // dragging from a fixture also box-selects
       if (gesture.kind === 'box') {
         const rect = renderer.domElement.getBoundingClientRect()
         const x0 = Math.min(gesture.x, e.clientX) - rect.left
@@ -602,6 +624,14 @@ export function Viewport() {
             return s.front && s.x >= x0 && s.x <= x1 && s.y >= y0 && s.y <= y1
           })
           .map((r) => r.fixtureId)
+        // Objects count when they're wholly inside the box (so boxing a few things on a stage doesn't grab the stage).
+        for (const r of sets.values()) {
+          if (!r.root.visible) continue
+          const b = new THREE.Box3().setFromObject(r.root)
+          if (b.isEmpty()) continue
+          const corners = [0, 1, 2, 3, 4, 5, 6, 7].map((i) => screenOf(new THREE.Vector3(i & 1 ? b.max.x : b.min.x, i & 2 ? b.max.y : b.min.y, i & 4 ? b.max.z : b.min.z)))
+          if (corners.every((c) => c.front && c.x >= x0 && c.x <= x1 && c.y >= y0 && c.y <= y1)) inside.push(r.structureId)
+        }
         const { selection, select } = useStore.getState()
         select(e.shiftKey ? [...new Set([...selection, ...inside])] : inside)
         return
@@ -620,11 +650,12 @@ export function Viewport() {
       const id = pick(e.clientX, e.clientY) ?? pickStructure(e.clientX, e.clientY)
       const { selection, select } = useStore.getState()
       if (id && !selection.includes(id)) select([id])
-      if (id || selection.length) useFixtureMenu.getState().open(e.clientX - rect.left, e.clientY - rect.top)
+      void rect
+      if (id || selection.length) useFixtureMenu.getState().open(e.clientX, e.clientY)
     }
     renderer.domElement.addEventListener('contextmenu', onContext)
 
-    // --- Double-click a set piece to edit it ---
+    // --- Double-click an object to edit it ---
     const onDouble = (e: MouseEvent) => {
       if (navigating() || pick(e.clientX, e.clientY)) return
       const piece = pickStructure(e.clientX, e.clientY)
@@ -675,7 +706,7 @@ export function Viewport() {
       if (!el) return
       const { project, selection } = useStore.getState()
       const fixtures = project.fixtures.filter((f) => selection.includes(f.id))
-      // Set pieces get the bar too, when no fixture is selected.
+      // Objects get the bar too, when no fixture is selected.
       const pieces = fixtures.length ? [] : (project.structures ?? []).filter((st) => selection.includes(st.id))
       const chosen = fixtures.length
         ? fixtures.map((f) => ({ id: f.id, position: f.position, top: f.mounting === 'hanging' ? 0.15 : 0.6 }))

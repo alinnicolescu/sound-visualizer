@@ -421,7 +421,7 @@ function FinishStep({ name, setName, room, setRoom, start, summary }: { name: st
       <div className="room-cards">
         <button className={`room-card ${room === 'basic' ? 'on' : ''}`} onClick={() => setRoom('basic')}>
           <strong>Stage, truss and DJ booth</strong>
-          <span>A low stage with a goalpost truss over it and a booth at the front. Change or remove any of it later in the Set tab.</span>
+          <span>A low stage with a goalpost truss over it and a booth at the front. Change or remove any of it later in the Objects tab.</span>
         </button>
         <button className={`room-card ${room === 'empty' ? 'on' : ''}`} onClick={() => setRoom('empty')}>
           <strong>Empty room</strong>

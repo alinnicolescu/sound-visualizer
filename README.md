@@ -4,7 +4,7 @@ A 3D lighting visualizer. It reads your SoundSwitch rig, draws each fixture to i
 
 *Works with SoundSwitch. SoundSwitch is a trademark of inMusic; Sound Visualizer is not affiliated with or endorsed by inMusic.*
 
-**For people using the app:** open the `.dmg`, drag Sound Visualizer to Applications, open it. Nothing else to install. The first time, a five-step welcome shows what's where, then **New show** offers four starts: from your SoundSwitch project, by describing it, from scratch, or the demo show.
+**For people using the app:** download the `.dmg` from this repository's [Releases](../../releases/latest) page, open it, drag Sound Visualizer to Applications, open it (the release notes say how to get past macOS's first-open warning). Nothing else to install. The first time, a five-step welcome shows what's where, then **New show** offers four starts: from your SoundSwitch project, by describing it, from scratch, or the demo show.
 
 It's built with Electron (desktop app), React (panels), three.js (3D) and TypeScript.
 
@@ -39,6 +39,10 @@ Other commands:
 
 ## Make the app (.dmg) to share
 
+**The easy way: let GitHub build it.** On the repository page, go to **Releases ▸ Draft a new release**, type a new tag like `v1.2.0`, write what changed, and press **Publish release**. The *Release the Mac app* workflow (in `.github/workflows/release.yml`) builds the app on one of GitHub's Macs, runs the tests, and attaches the `.dmg` and `.zip` to that release about 10 minutes later, with install notes. Anyone can download it from the Releases page. You can also run it by hand: **Actions ▸ Release the Mac app ▸ Run workflow** makes a release named after the version in `package.json`.
+
+**On your own Mac:**
+
 ```bash
 npm install         # once, after pulling a new version
 npm run dist:mac    # builds, signs, and runs Apple's checks
@@ -46,7 +50,7 @@ npm run dist:mac    # builds, signs, and runs Apple's checks
 
 You get **`dist/Sound-Visualizer-<version>-mac.dmg`**: one universal app that runs natively on Apple Silicon (M1 and later) and Intel Macs, macOS 12 Monterey or newer. The script finishes with a pass/fail list of Apple's checks (also saved as `dist/verification.txt`).
 
-To make it open on anyone's Mac with no warnings, it has to be signed with your Developer ID and notarized by Apple. **[RELEASING.md](RELEASING.md)** walks through the one-time setup. Without it you get an ad-hoc signed test build: on other Macs, open it the first time with right-click ▸ Open.
+To make it open on anyone's Mac with no warnings, it has to be signed with your Developer ID and notarized by Apple. **[RELEASING.md](RELEASING.md)** walks through the one-time setup, on your Mac or in the GitHub workflow. Without it you get an ad-hoc signed build: on other Macs, the first time, run `xattr -cr "/Applications/Sound Visualizer.app"` in Terminal (or use System Settings ▸ Privacy & Security ▸ Open Anyway).
 
 On first launch macOS asks to let the app find devices on your local network: allow it, or Art-Net from SoundSwitch can't reach it. Each person's SoundSwitch project, settings, imported fixtures and Claude key stay on their own Mac (in `~/Library/Application Support/Sound Visualizer`).
 
@@ -65,17 +69,33 @@ The fixture types you use are saved inside the project, so a project opens the s
 
 **Both Lighting.** The library includes 24 Both Lighting fixtures (MH-150, Hybrid 300W, BPM-Spots and BPM-Beams, Mini Beam Mover, Splash Pro/X, Aura 1915, Spider Wash, the IR/S/SQ uplights, Chroma Cannon, SQ-BAR9, FX Pix Bar 1000, 360 Tubes, Retro bars and hexes, G-Pins), written from Both Lighting's own user manuals, with colour wheel orders from their SoundSwitch profiles. Search "both lighting". Where a manual leaves something out (a pan range, a colour name), the fixture's notes say what was assumed.
 
-## Building the set: totems, stands, truss, staging
+## Objects: stands, truss, staging, sound, furniture, people
 
-The **Set** tab has the gear DJs and production companies bring: **totems** (2, 4, 6, 8 and 9 ft), **Chauvet DJ FLEXstands**, T-bar stands, **goalpost truss**, truss boxes, truss on the floor, **stage decks** (4 × 4 and 4 × 8 ft decks, or whole stages like 8 × 12 ft, at 1, 2, 4 or 6 ft), **tables** for more DJ setups, **DJ booths** with facades, **pipe and drape**, column PAs, speakers on poles and subs. Click one to add it, or drag it into the view. **Click a set piece to edit it**: the bar above it has the standard heights (a 4 ft totem becomes 6 ft in one click) and **Edit**, which opens all its settings: width, depth and height in feet with − / + half-foot steps, a slider and the sizes the gear comes in (a stage gets smaller or taller, a FLEXstand goes up from 6.6 ft), scrim or skirt colour, stairs and turn. Whatever is on it moves with it. Double-click a piece to edit it straight away.
+The **Objects** tab has everything in the room that isn't a light, in folding groups with a search box:
 
-**Tube stands** (2, 4, 6 and 8 ft, mic-stand style) hold a pixel tube upright, like the Both Lighting 360 Tube: drop the tube on the stand.
+- **Stands & totems**: totems (2-9 ft), Chauvet DJ FLEXstands, tube stands, T-bar stands.
+- **Truss**: goalposts, truss boxes, truss on the floor.
+- **Staging**: 4 × 4 and 4 × 8 ft decks, or whole stages, at 1, 2, 4 or 6 ft, with skirts and steps.
+- **Speakers & sound**: 8, 10, 12 and 15 in tops on a sub pole, on a tripod or on their own; 15, 18, 21 in and double 18 subs; stacked subs (cardioid too); wedge monitors; flown line arrays and ground stacks; column PAs; a FOH mixing desk; amp racks.
+- **DJ & band**: DJ booths with facades, decks or turntables and a mixer, mic stands (boom or straight), a drum kit, guitar amps, a keyboard.
+- **Furniture**: banquet tables, round tables with chairs, high-tops, a bar, rows of chairs, lounge sofas.
+- **Room & decor**: walls and partitions, pipe and drape, dance floors, projection screens, LED walls, backdrops, stanchions, plants, pillars.
+- **People**: a person for scale, or a crowd (light, busy or packed).
+
+Click one to add it, or drag it into the view. **Click an object to edit it**: the bar above it has the standard heights (a 4 ft totem becomes 6 ft in one click) and **Edit**, which opens all its settings: sizes in feet with − / + half-foot steps, speaker sizes, how many chairs or boxes, colours and turn. Double-click one to edit it straight away.
 
 **Moving heads: truss or totem mode.** The bar above a moving head has **⤓ Hang** / **⤒ Upright**: upright stands it on a totem, a stand, the top of the truss or the floor; hang puts it upside down under the truss (the nearest one, or the same bar it's on). The inspector's Mounting does the same.
 
-**It all obeys physics.** Nothing sinks into the floor or floats: a set piece stands on the floor, or on top of the stage or table under it, and goes up and down with it. The room grows to fit the set: the back wall moves back and the ceiling goes up if something wouldn't fit (Room ▾ says when).
+**It all obeys physics.** Nothing sinks into the floor or floats: an object stands on the floor, or on top of the stage, table or sub under it, and goes up and down with it. Flown line arrays hang at their height. The room grows to fit everything: the back wall moves back and the ceiling goes up if something wouldn't fit (Room ▾ says when).
 
-**Fixtures snap onto set pieces.** With the Move tool (W), drag a fixture over a totem or stand and it snaps to the top plate; over a truss and it hangs from the bar; next to a totem's face and it clamps on (washes); along a booth facade for bars. A ring shows where it will go, and blue guides show every place a fixture can attach. You can also drop a fixture from the Library straight onto a set piece, or use the right-click menu or the inspector's **Attached to** list. Move a totem and its fixture comes with it; delete it and the fixture falls to the floor. Drag a fixture away to take it off.
+**Fixtures snap onto objects.** Drag a fixture over a totem or stand and it snaps to the top plate; over a truss and it hangs from the bar; next to a totem's face and it clamps on (washes); along a booth facade, a bar front or near the top of a wall. A ring shows where it will go, and blue guides show every place a fixture can attach. You can also drop a fixture from the Library straight onto an object, or use the right-click menu or the inspector's **Attached to** list. Delete the object and the fixture falls to the floor.
+
+## Moving and lining things up
+
+- **Drag anything** (Select or Move tool) to slide it across the floor. What's attached to it or standing on it comes along: a stage brings the speakers and lights on it, a sub brings the top on it.
+- **A light on a stand moves its stand.** Grab the tube on a tube stand, or the head on a totem, and both move. Hold **Option** while dragging to lift the fixture off instead.
+- **Select several at once**: drag a box on empty floor. Objects are picked when they're wholly inside the box, so you can box a few things on a stage without grabbing the stage. A stage, dance floor or crowd drags once it's selected (click it first).
+- **One-click arranging**: right-click (in the view, the fixture list or the Objects list) and use **Move to** (back, centre or front of the stage, left or right side, in front of the stage), **Line up evenly** (a row across the back or front of the stage, in front of it, or where they are), **Align** (edges or centres) and **Space evenly**. The same buttons are in the inspector under **Move and line up**. Each is one undo step.
 
 ## Describe your show
 
@@ -95,10 +115,10 @@ A show made from SoundSwitch follows that project: patch changes there come in, 
 
 ## Shows: save, start from, import, export
 
-- **Save and open** `.ssvis` files (below): everything is in them, set pieces and fixture types included.
+- **Save and open** `.ssvis` files (below): everything is in them, objects and fixture types included.
 - **Shows ▾ / File ▸ New from Template**: start from a Mobile DJ, Club stage, Wedding/event or empty room rig, built from Both Lighting fixtures. Undo puts your previous show back.
-- **Import Show into This One**: adds another show's set pieces and fixtures to the current one, re-patching anything that would clash. Set pieces you already have (the same stage in the same place) aren't doubled.
-- **MVR** (My Virtual Rig, the open format Capture, grandMA3, Vectorworks and Depence exchange): **Export** writes fixtures with their position, patch and GDTF name, and set pieces as 3D models. **Open MVR** reads fixtures from any MVR: matched to the library by name, or built from the GDTF file inside it. An MVR this app wrote comes back exactly as it was.
+- **Import Show into This One**: adds another show's objects and fixtures to the current one, re-patching anything that would clash. Objects you already have (the same stage in the same place) aren't doubled.
+- **MVR** (My Virtual Rig, the open format Capture, grandMA3, Vectorworks and Depence exchange): **Export** writes fixtures with their position, patch and GDTF name, and objects as 3D models. **Open MVR** reads fixtures from any MVR: matched to the library by name, or built from the GDTF file inside it. An MVR this app wrote comes back exactly as it was.
 - **Export ▸ Patch List (CSV)**: every fixture with its universe, address, group and what it's attached to, for a spreadsheet.
 
 ## Working in the 3D view
@@ -107,8 +127,8 @@ A show made from SoundSwitch follows that project: patch changes there come in, 
 
 | Tool | Left mouse button |
 | --- | --- |
-| **Select** (V), the default | Click a fixture to select it; Shift-click adds or removes; drag on empty space to box-select (Shift adds to the selection) |
-| **Move** (W) | Same, plus drag a fixture to slide it across the floor or along the truss, or drag the arrows to move in 3D |
+| **Select** (V), the default | Click a fixture or object to select it; Shift-click adds or removes; drag on empty space to box-select (Shift adds to the selection); drag anything to slide it across the floor, with what's on it |
+| **Move** (W) | Same, plus arrows to move exactly in 3D, and up and down |
 | **Orbit** (O) | Drag to look around |
 
 With any tool, **hold Space** and drag to orbit, **Space+Shift** drag to pan, **Space+Alt/Option** drag to zoom. The scroll wheel always zooms, and the middle button pans. Clicks go through beams to the fixture, and a click near a small fixture picks it.
@@ -118,7 +138,8 @@ With any tool, **hold Space** and drag to orbit, **Space+Shift** drag to pan, **
 | Views | Persp, Top, Front, Left, Right, Up buttons, or keys 1–6 |
 | Frame the selection | **Focus** or F (Shift+F frames everything) |
 | Remember a camera | **Cameras ▾ → Store current view**. Stored views are saved with the project |
-| Move fixtures | Select, then drag the arrows. Snaps to 5 cm, one undo step per drag |
+| Move things | Drag them (a light on a stand brings the stand; Option-drag lifts it off), or use the Move tool's arrows. Snaps to 5 cm, one undo step per drag |
+| Line things up | Right-click ▸ **Move to**, **Line up evenly**, **Align**, **Space evenly** |
 | Save a picture | **Image** or Shift+Cmd+E |
 | Only the stage | **Full view** or Shift+Cmd+F |
 
@@ -127,7 +148,7 @@ With any tool, **hold Space** and drag to orbit, **Space+Shift** drag to pan, **
 
 **Gobos and pools.** Every beam lights the floor, the stage, the back wall and the ceiling where it actually lands, with its colour, its gobo (the fixture's real wheel slot, from its fixture data), gobo rotation from its rotation channel, and prism copies. Beams stop at the ceiling, the floor and the back wall. Gobo shapes are representative (fixture data doesn't include the gobo images), but each slot always draws the same shape, so you can tell them apart. Up to 32 of the brightest beams light the room at once.
 
-**Acting on fixtures in the 3D view.** Select a fixture (or several) and a bar appears above it: **M** mute, **S** solo, **Hide**, **Dup** (same patch, mirrors it), **Mirror**, and for moving heads **⇄ Pan** / **⇅ Tilt** to invert. **⋯** or right-clicking a fixture opens the full menu: duplicate with its own patch, hang from the truss or stand on the floor, rotate 90°, focus, select the same type, and delete.
+**Acting on fixtures in the 3D view.** Select a fixture (or several) and a bar appears above it: **M** mute, **S** solo, **Hide**, **Dup** (same patch, mirrors it), **Mirror**, and for moving heads **⇄ Pan** / **⇅ Tilt** to invert. **⋯** or right-clicking a fixture (in the view or the fixture list) opens the full menu: duplicate with its own patch, hang from the truss or stand on the floor, move and line up, rotate 90°, focus, select the same type, and delete. Long menus scroll, and submenus open to the side.
 
 **Groups.** Fixtures keep their SoundSwitch group (Group 1, 2, 3...). The chips above the fixture list filter it to one group; with a group picked, **Select**, **M**, **S** and **Hide** act on the whole group. Double-click a chip to give the group a name (SoundSwitch only numbers them). Fixtures you add yourself can be put in a group in the inspector.
 
@@ -212,7 +233,8 @@ src/
       decode.ts          Raw DMX levels -> pan, tilt, colour, intensity, beam angle, pixel cells
       soundswitchImport.ts  SoundSwitch fixtures -> our fixture types, with a starting layout
       layout.ts          Automatic layout and Distribute (line, arc, circle, grid)
-      structures.ts      Set pieces: sizes, surfaces and mount points (totems, truss, stages…)
+      structures.ts      Objects: sizes, surfaces and mount points (totems, truss, stages, speakers, furniture…)
+      arrange.ts         What moves together (a stand and its light, a stage and what's on it); Move to, Line up, Align
       physics.ts         Everything rests on something; attached fixtures follow; the room grows to fit
       exchange.ts        Merging shows, MVR (and GDTF) in and out, CSV patch lists
       oflImport.ts       Open Fixture Library fixtures -> our fixture types (heads, wheels, shutter, pixels)
@@ -234,8 +256,8 @@ src/
       Viewport.tsx       Scene, camera, click-to-select, and the frame loop
       fixtureRig.ts      One fixture's 3D model and its movement simulation
       beamMaterial.ts    The shader that draws a beam in haze
-      stage.ts           The room (floor, wall, ceiling), sized to fit the set, and its ambient light
-      structures.ts      Draws set pieces: box truss, decks with skirts and stairs, totems with scrim
+      stage.ts           The room (floor, wall, ceiling), sized to fit everything, and its ambient light
+      structures.ts      Draws objects: box truss, decks, speakers and line arrays, furniture, walls, people
       roomMaterial.ts    Room surfaces light themselves from every beam, gobo and prism included
       projectors.ts      Each frame's list of lit beams, for the room surfaces
       gobos.ts           The gobo pattern atlas
@@ -261,7 +283,7 @@ scripts/artnet-test.mjs  Art-Net test sender
 ## What's next
 
 - **Capture's own project format**: Capture's .c2p files are proprietary; MVR is the open way to move a rig between them.
-- **More set pieces**: circle truss, arches, LED walls, hazers on the floor.
+- **More objects**: circle truss, arches, tents, hazers on the floor.
 - **Gobo images**: draw the fixture's real gobo glass where a GDTF file includes it, instead of the representative shapes.
 
 ## License

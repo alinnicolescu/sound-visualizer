@@ -10,6 +10,7 @@ import { FIXTURE_PROPERTIES, type PropertyDescriptor } from '../state/properties
 import { findOverlaps, fitsInUniverse, footprint, type Fixture } from '../model/project'
 import { getFixtureType } from '../model/fixtureTypes'
 import { ArrangePanel } from './ArrangePanel'
+import { ArrangeButtons } from './ArrangeMenu'
 import { FixtureMount, StructureInspector } from './StructureActions'
 
 export function Inspector() {
@@ -35,6 +36,7 @@ export function Inspector() {
   return (
     <div className="inspector">
       <h2>{selected.length === 1 ? selected[0].name : `${selected.length} fixtures`}</h2>
+      {pieces.length > 0 && <p className="hint">Also selected: {pieces.length === 1 ? pieces[0].name : `${pieces.length} objects`}. Moving and lining up takes them all.</p>}
       {clashes.map(([a, b]) => (
         <p key={a.id + b.id} className="problem">
           {a.name} and {b.name} share channels in universe {a.universe + 1}.
@@ -47,6 +49,7 @@ export function Inspector() {
       ))}
       {selected.length === 1 && <TypeInfo fixture={selected[0]} />}
       <FixtureMount fixtures={selected} />
+      <ArrangeButtons ids={selection} />
       {FIXTURE_PROPERTIES.map(({ section, properties }) => (
         <fieldset key={section}>
           <legend>{section}</legend>
@@ -108,7 +111,7 @@ function Field({ property, fixtures }: { property: PropertyDescriptor; fixtures:
             // Hanging needs a truss: go through the command that finds one.
             if (property.key === 'mounting') {
               const stuck = orientFixtures(ids, e.target.value as 'hanging' | 'floor')
-              if (stuck.length) notify('error', `Nothing to hang ${stuck.join(', ')} from: add a truss in the Set tab.`)
+              if (stuck.length) notify('error', `Nothing to hang ${stuck.join(', ')} from: add a truss in the Objects tab.`)
             } else updateFixtures(ids, `Set ${property.label}`, (f) => property.set(f, e.target.value))
           }}
         >

@@ -9,6 +9,7 @@ import { defaultName, footprint as structureFootprint, mountPoints, STRUCTURE_KI
 import { projectFromSoundSwitch, soundswitchKeyOf } from '../model/soundswitchImport'
 import { autoLayout, distribute, type Shape, type Where } from '../model/layout'
 import { nearestMount } from '../model/physics'
+import { alignUnits, applyDeltas, lineUp, movingRoots, placeGroup, spaceEvenly, stageArea, unitsOf, withRiders, type Area, type Delta, type Edge, type Place, type Unit } from '../model/arrange'
 import type { SoundSwitchFixture } from '../../../shared/soundswitch'
 
 const store = () => useStore.getState()
@@ -324,7 +325,7 @@ export function autoPlaceFixtures(ids: string[]): void {
 }
 
 // ---------------------------------------------------------------------------
-// Set pieces: totems, stands, truss, stages, tables, drape (model/structures.ts)
+// Objects: totems, stands, truss, stages, tables, drape (model/structures.ts)
 // Physics (model/physics.ts) sets their height and keeps attached fixtures on them.
 // ---------------------------------------------------------------------------
 
@@ -355,9 +356,17 @@ function freeSpot(list: Structure[], kind: StructureKind, params: StructureParam
 }
 
 /** Where each kind of piece goes first, if you don't say. */
-const NEAR: Partial<Record<StructureKind, Vec3>> = { stage: [0, 0, -1], goalpost: [0, 0, -1], trussBox: [0, 0, 0], pipeDrape: [0, 0, -4], table: [0, 0, 3], djBooth: [0, 0, 3], speakerColumn: [5, 0, 3], speakerOnPole: [5, 0, 3], sub: [5, 0, 3] }
+const NEAR: Partial<Record<StructureKind, Vec3>> = {
+  stage: [0, 0, -1], goalpost: [0, 0, -1], trussBox: [0, 0, 0], pipeDrape: [0, 0, -4], table: [0, 0, 3], djBooth: [0, 0, 3],
+  speakerColumn: [5, 0, 3], speakerOnPole: [5, 0, 3], sub: [5, 0, 3], speakerOnSub: [5, 0, 3], speakerBox: [5, 0, 3], subStack: [6, 0, 3],
+  monitor: [1, 0, 1.5], lineArray: [7, 0, 2], groundStack: [7, 0, 3], fohDesk: [0, 0, 12], ampRack: [-6, 0, -2],
+  djGear: [0, 0, 3], micStand: [1.5, 0, 1], drumKit: [0, 0, -2], guitarAmp: [-2, 0, -2], keyboard: [2.5, 0, -1],
+  roundTable: [-6, 0, 9], highTop: [5, 0, 8], bar: [-9, 0, 8], chairs: [0, 0, 9], sofa: [8, 0, 10],
+  wall: [0, 0, -6], danceFloor: [0, 0, 6.5], screen: [0, 0, -4.5], ledWall: [0, 0, -4.5], backdrop: [0, 0, -4], stanchions: [6, 0, 6],
+  plant: [-8, 0, 3], pillar: [-9, 0, 6], person: [0, 0, 6], crowd: [0, 0, 8]
+}
 
-/** Add a set piece. Without `at` it goes to the front of the stage, beside anything already there. */
+/** Add an object. Without `at` it goes to the front of the stage, beside anything already there. */
 export function addStructure(kind: StructureKind, params: StructureParams = {}, options: { at?: Vec3; name?: string; rotation?: number; select?: boolean } = {}): string {
   const list = structuresOf(store().project)
   const position = options.at ? ([round(options.at[0]), 0, round(options.at[2])] as Vec3) : freeSpot(list, kind, params, NEAR[kind] ?? [0, 0, 1.5])
@@ -378,46 +387,93 @@ export function updateStructures(ids: string[], label: string, change: (s: Struc
 
 /** Change size or options; the name follows if it was the automatic one. */
 export function setStructureParams(ids: string[], change: StructureParams): void {
-  updateStructures(ids, 'Change set piece', (s) => {
+  updateStructures(ids, 'Change object', (s) => {
     const params = { ...s.params, ...change }
     const auto = s.name === defaultName(s.kind, s.params)
     return { ...s, params, name: auto ? defaultName(s.kind, params) : s.name }
   }, true)
 }
 
-/** Move set pieces; whatever is attached to them comes along. */
+/** Move objects; whatever is attached to them or standing on them comes along. */
 export function moveStructures(ids: string[], delta: Vec3): void {
-  if (Math.abs(delta[0]) < 1e-6 && Math.abs(delta[2]) < 1e-6) return
-  updateStructures(ids, ids.length === 1 ? 'Move set piece' : `Move ${ids.length} set pieces`, (s) => ({
-    ...s,
-    position: [round(s.position[0] + delta[0]), s.position[1], round(s.position[2] + delta[2])]
-  }))
+  moveSelection(ids, delta)
 }
 
 export function rotateStructures(ids: string[], degrees: number): void {
-  updateStructures(ids, 'Turn set piece', (s) => ({ ...s, rotation: (((s.rotation + degrees) % 360) + 540) % 360 - 180 }))
+  updateStructures(ids, 'Turn object', (s) => ({ ...s, rotation: (((s.rotation + degrees) % 360) + 540) % 360 - 180 }))
 }
 
-/** Move a mixed selection: set pieces (with their fixtures) and loose fixtures. */
+/**
+ * Move a mixed selection: objects (with what's attached to them and standing on
+ * them) and loose fixtures. A fixture on a stand or totem moves its stand.
+ * Only loose fixtures go up and down (the gizmo's vertical arrow).
+ */
 export function moveSelection(ids: string[], delta: Vec3): void {
+  if (!delta.some((d) => Math.abs(d) > 1e-6)) return
   const p = store().project
-  const st = new Set(structuresOf(p).filter((s) => ids.includes(s.id)).map((s) => s.id))
-  const loose = p.fixtures.filter((f) => ids.includes(f.id) && !(f.mount && st.has(f.mount.structure))).map((f) => f.id)
-  if (!st.size) return moveFixtures(loose, delta)
-  if (!loose.length) return moveStructures([...st], delta)
-  store().apply(`Move ${ids.length} items`, (q) => ({
+  const roots = movingRoots(p, ids)
+  const moved = withRiders(p, roots)
+  if (!moved.structures.size && !moved.fixtures.size) return
+  const n = roots.structures.size + roots.fixtures.size
+  const label = n === 1 ? (roots.structures.size ? 'Move object' : 'Move fixture') : `Move ${n} items`
+  store().apply(label, (q) => ({
     ...q,
-    structures: structuresOf(q).map((s) => (st.has(s.id) ? { ...s, position: [round(s.position[0] + delta[0]), s.position[1], round(s.position[2] + delta[2])] as Vec3 } : s)),
-    fixtures: q.fixtures.map((f) => (loose.includes(f.id) ? { ...f, position: [round(f.position[0] + delta[0]), round(Math.max(0, f.position[1] + delta[1])), round(f.position[2] + delta[2])] as Vec3 } : f))
+    structures: structuresOf(q).map((s) => (moved.structures.has(s.id) ? { ...s, position: [round(s.position[0] + delta[0]), s.position[1], round(s.position[2] + delta[2])] as Vec3 } : s)),
+    fixtures: q.fixtures.map((f) => {
+      if (!moved.fixtures.has(f.id)) return f
+      const dy = roots.fixtures.has(f.id) ? delta[1] : 0
+      return { ...f, position: [round(f.position[0] + delta[0]), round(Math.max(0, f.position[1] + dy)), round(f.position[2] + delta[2])] as Vec3 }
+    })
   }))
 }
 
-/** Delete set pieces. What was on them stays, and falls to whatever is below. */
+// ---------------------------------------------------------------------------
+// Arranging objects and fixtures together (model/arrange.ts)
+// ---------------------------------------------------------------------------
+
+function arrange(ids: string[], label: string, plan: (units: Unit[], area: Area) => Map<string, Delta>): boolean {
+  const p = store().project
+  const units = unitsOf(p, ids)
+  if (!units.length) return false
+  // The stage itself can be in the selection: measure against what's left.
+  const area = stageArea(p, new Set(units.map((u) => u.id)))
+  const deltas = plan(units, area)
+  if (![...deltas.values()].some((d) => Math.abs(d[0]) > 1e-6 || Math.abs(d[1]) > 1e-6)) return false
+  store().apply(label, (q) => applyDeltas(q, deltas))
+  return true
+}
+
+const PLACE_LABEL: Record<Place, string> = { back: 'Move to the back of the stage', centre: 'Move to the centre of the stage', front: 'Move to the front of the stage', left: 'Move to the left side', right: 'Move to the right side', audience: 'Move in front of the stage' }
+
+/** Move the selection, keeping its arrangement, to a place on the stage. */
+export function placeSelection(ids: string[], place: Place): boolean {
+  return arrange(ids, PLACE_LABEL[place], (units, area) => placeGroup(units, area, place))
+}
+
+/** An evenly spaced row, left to right: across the back or front of the stage, in front of it, or where they are. */
+export function lineUpSelection(ids: string[], where: 'back' | 'front' | 'audience' | 'here'): boolean {
+  return arrange(ids, 'Line up evenly', (units, area) => lineUp(units, area, where))
+}
+
+export function alignSelection(ids: string[], edge: Edge): boolean {
+  return arrange(ids, 'Align', (units) => alignUnits(units, edge))
+}
+
+export function spaceSelection(ids: string[], axis: 'x' | 'z'): boolean {
+  return arrange(ids, axis === 'x' ? 'Space evenly left to right' : 'Space evenly front to back', (units) => spaceEvenly(units, axis))
+}
+
+/** How many things would move on their own (for enabling the arrange actions). */
+export function unitCount(ids: string[]): number {
+  return unitsOf(store().project, ids).length
+}
+
+/** Delete objects. What was on them stays, and falls to whatever is below. */
 export function deleteStructures(ids: string[]): void {
   const set = new Set(ids)
   const n = structuresOf(store().project).filter((s) => set.has(s.id)).length
   if (!n) return
-  store().apply(n === 1 ? 'Delete set piece' : `Delete ${n} set pieces`, (p) => ({
+  store().apply(n === 1 ? 'Delete object' : `Delete ${n} objects`, (p) => ({
     ...p,
     structures: structuresOf(p).filter((s) => !set.has(s.id)),
     fixtures: p.fixtures.map((f) => (f.mount && set.has(f.mount.structure) ? { ...f, mount: undefined } : f))
@@ -425,7 +481,7 @@ export function deleteStructures(ids: string[]): void {
   store().select(store().selection.filter((id) => !set.has(id)))
 }
 
-/** Copies of set pieces beside the originals, with copies of the fixtures on them (own patch). */
+/** Copies of objects beside the originals, with copies of the fixtures on them (own patch). */
 export function duplicateStructures(ids: string[]): void {
   const p = store().project
   const source = structuresOf(p).filter((s) => ids.includes(s.id))
@@ -442,7 +498,7 @@ export function duplicateStructures(ids: string[]): void {
       newFixtures.push({ ...f, id: newId(), name: `${f.name.replace(/\s+\d+$/, '')} copy`, soundswitchKey: undefined, ...spot, position: [round(f.position[0] + shift), f.position[1], f.position[2]], mount: { ...f.mount!, structure: copy.id } })
     }
   }
-  store().apply(copies.length === 1 ? `Duplicate ${source[0].name}` : `Duplicate ${copies.length} set pieces`, (q) => ({
+  store().apply(copies.length === 1 ? `Duplicate ${source[0].name}` : `Duplicate ${copies.length} objects`, (q) => ({
     ...q,
     structures: [...structuresOf(q), ...copies],
     fixtures: [...q.fixtures, ...newFixtures]
@@ -451,7 +507,7 @@ export function duplicateStructures(ids: string[]): void {
 }
 
 /**
- * Attach fixtures to a set piece: on top of a totem or stand, under a truss bar,
+ * Attach fixtures to an object: on top of a totem or stand, under a truss bar,
  * clamped to a leg or along a booth facade. Several fixtures on a bar are spaced
  * along it around `t`; a single point (a top plate) takes one fixture.
  * `point` can be a mount point id or a kind ('top', 'under', 'clamp', 'face').

@@ -44,7 +44,7 @@ async function readShow(name: string, bytes: Uint8Array): Promise<{ project: Pro
   return { project: parsed.project as Project, unknown: [] }
 }
 
-/** File ▸ Import Show into This One: adds its set pieces and fixtures (one undo step). */
+/** File ▸ Import Show into This One: adds its objects and fixtures (one undo step). */
 export async function importShowInto(): Promise<void> {
   if (!window.api) return
   const file = await window.api.openFile(SHOW_FILTERS)
@@ -55,7 +55,7 @@ export async function importShowInto(): Promise<void> {
     let summary = ''
     useStore.getState().apply(`Import ${file.name}`, (p) => {
       const r = mergeShow(p, incoming)
-      summary = `Added ${r.fixtures} fixtures and ${r.structures} set pieces from ${file.name}${r.repatched ? `; ${r.repatched} re-patched to free addresses` : ''}.`
+      summary = `Added ${r.fixtures} fixtures and ${r.structures} objects from ${file.name}${r.repatched ? `; ${r.repatched} re-patched to free addresses` : ''}.`
       return r.project
     })
     notify('info', summary + (unknown.length ? ` Not in the library: ${unknown.join(', ')}.` : ''))

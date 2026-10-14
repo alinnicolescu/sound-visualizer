@@ -1,6 +1,6 @@
 /**
  * "Describe your show": type (or dictate) what you want, and the rig is built
- * for you, set pieces, fixtures, patch and all, as one undo step.
+ * for you, objects, fixtures, patch and all, as one undo step.
  *
  * With Claude connected (your Anthropic API key, kept encrypted by the app),
  * anything you describe works. Without it, the built-in reader handles the

@@ -47,6 +47,12 @@ function settleStructures(list: Structure[]): Structure[] {
     if (visiting.has(s.id)) return 0 // two decks under each other: break the loop
     visiting.add(s.id)
     let y = 0
+    // Flown things (a line array) hang from the ceiling, whatever is under them.
+    if (STRUCTURE_KINDS[s.kind].flown) {
+      visiting.delete(s.id)
+      base.set(s.id, 0)
+      return 0
+    }
     for (const t of list) {
       if (t.id === s.id || !STRUCTURE_KINDS[t.kind].surface) continue
       if (!covers(t, s.position[0], s.position[2])) continue

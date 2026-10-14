@@ -169,8 +169,8 @@ function RoomMenu() {
               />
             </div>
           )}
-          {fit.raised && room.ceiling && <p className="hint">Raised to {fit.ceiling} m so the set fits under it.</p>}
-          <p className="hint">The room grows to hold the set. Gobos and beam pools show on the floor, the back wall and the ceiling. Press Up (6) to look at the ceiling.</p>
+          {fit.raised && room.ceiling && <p className="hint">Raised to {fit.ceiling} m so everything fits under it.</p>}
+          <p className="hint">The room grows to hold everything. Gobos and beam pools show on the floor, the back wall and the ceiling. Press Up (6) to look at the ceiling.</p>
         </div>
       )}
     </div>

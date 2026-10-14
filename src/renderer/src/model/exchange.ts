@@ -1,11 +1,11 @@
 /**
  * Moving shows in and out:
  *
- *  - mergeShow: bring another show into this one (its set pieces and fixtures),
+ *  - mergeShow: bring another show into this one (its objects and fixtures),
  *    re-patching anything that would clash with what's already here.
  *  - MVR (My Virtual Rig, the open GDTF/MVR standard used by Capture, grandMA3,
  *    Vectorworks, Depence and others): a zip with GeneralSceneDescription.xml.
- *    We write fixtures with their position, patch and GDTF name, set pieces as
+ *    We write fixtures with their position, patch and GDTF name, objects as
  *    scene objects with 3D models (glTF), and our own show file inside UserData
  *    so a round trip through this app loses nothing. Reading takes fixtures from
  *    any MVR: matched to the library by name, or built from the GDTF file in the
@@ -28,7 +28,7 @@ import type { LibraryEntry } from './oflImport'
 const sameStructure = (a: Structure, b: Structure) =>
   a.kind === b.kind && Math.abs(a.position[0] - b.position[0]) < 0.05 && Math.abs(a.position[2] - b.position[2]) < 0.05 && JSON.stringify(a.params) === JSON.stringify(b.params)
 
-/** Fixtures (and the set pieces they're on) from `incoming`, added to `current`. */
+/** Fixtures (and the objects they're on) from `incoming`, added to `current`. */
 export function mergeShow(current: Project, incoming: Project): { project: Project; fixtures: number; structures: number; repatched: number } {
   const structureIds = new Map<string, string>()
   const newStructures: Structure[] = []
@@ -132,7 +132,7 @@ export function gdtfName(t: FixtureType): string {
 }
 
 export interface MvrExportOptions {
-  /** A glTF (.glb) model of a set piece, so it shows in other programs too. */
+  /** A glTF (.glb) model of an object, so it shows in other programs too. */
   model?: (s: Structure) => Promise<Uint8Array | null>
 }
 

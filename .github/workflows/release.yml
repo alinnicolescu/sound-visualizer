@@ -1,0 +1,101 @@
+# Builds the Mac app and attaches it to a GitHub release, so people can
+# download Sound Visualizer without building it themselves.
+#
+# Two ways to run it:
+#  - Publish a release on GitHub (Releases > Draft a new release > choose a tag
+#    like v1.1.0 > Publish). This builds the app and adds the .dmg and .zip to
+#    that release, usually within 10 minutes.
+#  - Actions > Release the Mac app > Run workflow. This makes a release named
+#    after the version in package.json (v1.1.0 and so on) if there isn't one yet.
+#
+# Without Apple signing secrets the app is ad-hoc signed: it runs, but each Mac
+# has to allow it once (see the notes added to the release). With a Developer ID
+# certificate and notarization credentials saved as repository secrets
+# (see RELEASING.md), the same workflow makes a fully signed, notarized app.
+name: Release the Mac app
+
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  mac:
+    runs-on: macos-latest
+    timeout-minutes: 40
+    env:
+      HAS_CERT: ${{ secrets.MAC_CERTIFICATE_P12_BASE64 != '' }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.release.tag_name || github.ref }}
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install
+        run: npm ci --legacy-peer-deps
+
+      - name: Import the signing certificate (only if it's been set up)
+        if: env.HAS_CERT == 'true'
+        env:
+          CERT: ${{ secrets.MAC_CERTIFICATE_P12_BASE64 }}
+          CERT_PASSWORD: ${{ secrets.MAC_CERTIFICATE_PASSWORD }}
+        run: |
+          echo "$CERT" | base64 --decode > "$RUNNER_TEMP/cert.p12"
+          security create-keychain -p ci "$RUNNER_TEMP/ci.keychain"
+          security set-keychain-settings -lut 3600 "$RUNNER_TEMP/ci.keychain"
+          security unlock-keychain -p ci "$RUNNER_TEMP/ci.keychain"
+          security import "$RUNNER_TEMP/cert.p12" -k "$RUNNER_TEMP/ci.keychain" -P "$CERT_PASSWORD" -T /usr/bin/codesign
+          security set-key-partition-list -S apple-tool:,apple:,codesign: -s -k ci "$RUNNER_TEMP/ci.keychain"
+          security list-keychains -d user -s "$RUNNER_TEMP/ci.keychain" login.keychain
+
+      - name: Build, sign and check (typecheck, tests, universal .dmg and .zip)
+        env:
+          # Notarization, used only when these secrets exist.
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+        run: npm run dist:mac
+
+      - name: Work out the release
+        id: release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          if [ -n "${{ github.event.release.tag_name }}" ]; then
+            tag="${{ github.event.release.tag_name }}"
+          else
+            tag="v$(node -p "require('./package.json').version")"
+            gh release view "$tag" >/dev/null 2>&1 || gh release create "$tag" --title "Sound Visualizer $tag" --generate-notes --target "$GITHUB_SHA"
+          fi
+          echo "tag=$tag" >> "$GITHUB_OUTPUT"
+
+      - name: Attach the app to the release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release upload "${{ steps.release.outputs.tag }}" dist/*.dmg dist/*.zip dist/verification.txt --clobber
+
+      - name: Add install notes to the release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          tag="${{ steps.release.outputs.tag }}"
+          body="$(gh release view "$tag" --json body -q .body)"
+          case "$body" in *"How to install"*) exit 0 ;; esac
+          if grep -q "Build: notarized" dist/verification.txt; then
+            first="Open it like any app."
+          else
+            first='This build is not notarized by Apple, so the first time macOS says it "can'"'"'t be opened". Click Done, then open Terminal and run:\n\n```\nxattr -cr "/Applications/Sound Visualizer.app"\n```\n\nand open it again. (Or System Settings > Privacy & Security > Open Anyway.)'
+          fi
+          notes="$(printf '%s\n\n## How to install\n\n1. Download **%s** below (works on Apple Silicon and Intel Macs, macOS 12 or newer).\n2. Open it and drag **Sound Visualizer** into **Applications**.\n3. %b\n\n4. When it asks to find devices on your local network, click **Allow** (that is how SoundSwitch reaches it).\n' "$body" "$(cd dist && ls *.dmg | head -1)" "$first")"
+          gh release edit "$tag" --notes "$notes"

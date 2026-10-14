@@ -10,6 +10,7 @@
 import { useMemo, useRef, useState } from 'react'
 import { useStore } from '../state/store'
 import { useMix } from '../state/mix'
+import { useFixtureMenu } from '../state/fixtureMenu'
 import { renameGroup, updateFixtures } from '../state/commands'
 import { findOverlaps, fitsInUniverse, footprint, type Fixture } from '../model/project'
 import { getFixtureType, plainName } from '../model/fixtureTypes'
@@ -104,6 +105,12 @@ export function FixtureList() {
                 key={f.id}
                 className={[selection.includes(f.id) ? 'selected' : '', live ? '' : 'dead', hidden ? 'hidden-row' : ''].join(' ')}
                 onClick={(e) => onRowClick(f.id, e)}
+                onContextMenu={(e) => {
+                  // The same actions as right-clicking the fixture in the 3D view.
+                  e.preventDefault()
+                  if (!selection.includes(f.id)) select([f.id])
+                  useFixtureMenu.getState().open(e.clientX, e.clientY)
+                }}
               >
                 <td className="toggles" onClick={(e) => e.stopPropagation()}>
                   <button className={`tog ${muted ? 'on-mute' : ''}`} title="Mute (M)" onClick={() => mix.toggle('muted', targets(f.id))}>
@@ -134,7 +141,7 @@ export function FixtureList() {
         </tbody>
       </table>
       <p className="hint">
-        Shift-click a range, Cmd-click to add. Double-click a name or patch to edit; with several selected, edits apply to all. Keys: M mute, S solo, H hide, Cmd+D duplicate.
+        Shift-click a range, Cmd-click to add, right-click for actions. Double-click a name or patch to edit; with several selected, edits apply to all. Keys: M mute, S solo, H hide, Cmd+D duplicate.
       </p>
     </div>
   )

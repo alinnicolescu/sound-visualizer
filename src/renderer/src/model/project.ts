@@ -75,7 +75,7 @@ export interface Project {
   room?: RoomSettings
   /** Your own names for groups ("Uplights"); SoundSwitch only numbers them. */
   groupNames?: Record<number, string>
-  /** Set pieces: stage decks, truss, totems, tables... (model/structures.ts). */
+  /** Objects: stage decks, truss, totems, tables... (model/structures.ts). */
   structures?: Structure[]
 }
 

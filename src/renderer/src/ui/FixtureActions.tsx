@@ -17,6 +17,8 @@ import { nearestMount } from '../model/physics'
 import { getFixtureType } from '../model/fixtureTypes'
 import { headsOf } from '../model/heads'
 import { view } from '../state/viewBus'
+import { MenuItem, MenuShell } from './Menu'
+import { ArrangeMenu } from './ArrangeMenu'
 import type { Fixture } from '../model/project'
 
 /** Which selected fixtures can move (pan/tilt), so invert only shows when it means something. */
@@ -53,7 +55,7 @@ function useSelectionInfo() {
 
 function orient(ids: string[], to: 'hanging' | 'floor') {
   const stuck = orientFixtures(ids, to)
-  if (stuck.length) notify('error', `Nothing to hang ${stuck.length > 2 ? `${stuck.length} fixtures` : stuck.join(' and ')} from: add a truss in the Set tab first.`)
+  if (stuck.length) notify('error', `Nothing to hang ${stuck.length > 2 ? `${stuck.length} fixtures` : stuck.join(' and ')} from: add a truss from the Objects tab first.`)
 }
 
 function setInvert(ids: string[], key: 'invertPan' | 'invertTilt', current: Tri) {
@@ -113,8 +115,8 @@ export function FixtureHud() {
         className="hud-btn"
         title="More actions (or right-click the fixture)"
         onClick={(e) => {
-          const rect = (e.currentTarget.closest('.viewport-wrap') as HTMLElement).getBoundingClientRect()
-          openMenu(e.clientX - rect.left, e.clientY - rect.top + 12)
+          const r = e.currentTarget.getBoundingClientRect()
+          openMenu(r.left, r.bottom + 4)
         }}
       >
         ⋯
@@ -149,11 +151,10 @@ export function FixtureMenu() {
   const hangTarget = nearestMount(structures, first.position, ['under'], 1e3)
   const attach = attachOptions(structures, first, 4).filter((o) => o.point.kind !== 'under' && !(first.mount?.structure === o.structure.id && first.mount.point === o.point.id))
 
+  const all = useStore.getState().selection
   return (
-    <>
-      <div className="menu-backdrop" onPointerDown={close} onContextMenu={(e) => (e.preventDefault(), close())} />
-      <div className="fixture-menu" style={{ left: at.x, top: at.y }}>
-        <div className="menu-title">{info.chosen.length === 1 ? info.chosen[0].name : `${info.chosen.length} fixtures`}</div>
+    <MenuShell at={at} onClose={close}>
+        <div className="menu-title">{info.chosen.length === 1 ? info.chosen[0].name : all.length > info.chosen.length ? `${all.length} items` : `${info.chosen.length} fixtures`}</div>
         <Item label="Mute" check={check(info.muted)} keys="M" onClick={run(() => mix.toggle('muted', ids))} />
         <Item label="Solo" check={check(info.solo)} keys="S" onClick={run(() => mix.toggle('solo', ids))} />
         <Item label="Hide" check={check(info.hidden)} keys="H" onClick={run(() => mix.toggle('hidden', ids))} />
@@ -175,8 +176,9 @@ export function FixtureMenu() {
         {attach.map((o) => (
           <Item key={o.structure.id + o.point.id} label={`${o.point.label}: ${o.structure.name}`} onClick={run(() => mountFixtures(ids, o.structure.id, o.point.id, o.t))} />
         ))}
-        {ids.length > 1 && <Item label="Distribute evenly in a line" onClick={run(() => distributeFixtures(ids, 'line', 'keep'))} />}
-        {ids.length > 1 && <Item label="Distribute along the truss" onClick={run(() => distributeFixtures(ids, 'line', 'truss'))} />}
+        <hr />
+        <ArrangeMenu ids={all} run={run} />
+        {ids.length > 1 && <Item label="Spread along the truss" onClick={run(() => distributeFixtures(ids, 'line', 'truss'))} />}
         <Item label="Auto-place by type" onClick={run(() => autoPlaceFixtures(ids))} />
         <Item label="Rotate 90° left" onClick={run(() => updateFixtures(ids, 'Rotate', (f) => ({ ...f, rotation: (((f.rotation ?? 0) + 90 + 180) % 360) - 180 })))} />
         <Item label="Rotate 90° right" onClick={run(() => updateFixtures(ids, 'Rotate', (f) => ({ ...f, rotation: (((f.rotation ?? 0) - 90 + 540) % 360) - 180 })))} />
@@ -192,17 +194,8 @@ export function FixtureMenu() {
         />
         <hr />
         <Item label="Delete" keys="⌫" danger onClick={run(() => deleteFixtures(ids))} />
-      </div>
-    </>
+    </MenuShell>
   )
 }
 
-function Item({ label, onClick, check, keys, danger }: { label: string; onClick: () => void; check?: string; keys?: string; danger?: boolean }) {
-  return (
-    <button className={`menu-item ${danger ? 'danger' : ''}`} onClick={onClick}>
-      <span className="menu-check">{check}</span>
-      <span className="menu-label">{label}</span>
-      {keys && <span className="menu-keys">{keys}</span>}
-    </button>
-  )
-}
+const Item = MenuItem
