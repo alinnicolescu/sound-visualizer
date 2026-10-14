@@ -53,8 +53,9 @@ input[type='range'] { padding: 0; accent-color: var(--accent); }
 .app {
   display: grid;
   height: 100%;
-  grid-template-columns: 300px 1fr 290px;
-  grid-template-rows: 44px 1fr 290px;
+  grid-template-columns: var(--left-w, 320px) minmax(0, 1fr) var(--right-w, 300px);
+  grid-template-rows: 44px minmax(0, 1fr) 290px;
+  position: relative;
   grid-template-areas:
     'toolbar toolbar toolbar'
     'left center right'
@@ -352,7 +353,7 @@ button.mini.on { border-color: var(--accent); background: #1c2c48; }
 .set-cat.fold:hover { color: var(--text, #e6e6e6); }
 .set-cat .count { margin-left: auto; opacity: 0.7; }
 .fold-arrow { width: 10px; display: inline-block; }
-.set-presets { display: grid; grid-template-columns: 1fr 1fr; gap: 4px; }
+.set-presets { display: grid; grid-template-columns: repeat(auto-fill, minmax(118px, 1fr)); gap: 4px; }
 .set-preset { display: flex; align-items: center; gap: 6px; padding: 5px 6px; font-size: 11.5px; text-align: left; line-height: 1.2; cursor: grab; }
 .set-preset span { overflow: hidden; text-overflow: ellipsis; }
 .set-icon { flex: none; color: #9bb4d9; }
@@ -593,7 +594,8 @@ select.where { width: 100%; }
 /* --- Fixture list groups --- */
 .list-controls { display: flex; gap: 6px; align-items: center; margin-bottom: 8px; }
 .list-controls .filter { flex: 1; min-width: 0; margin: 0; }
-.list-controls select { width: auto; max-width: 140px; font-size: 12px; }
+.list-controls select { width: auto; max-width: 112px; min-width: 0; font-size: 12px; flex: 0 1 auto; }
+.list-controls .filter { min-width: 90px; }
 .fixture-list tbody.section + tbody.section .section-head td { border-top: 6px solid transparent; }
 .fixture-list tr.section-head td { padding: 4px 2px 3px; background: #161a20; border-bottom: 1px solid var(--line); }
 .fixture-list tr.section-head.selected td { background: #1c2c48; }
@@ -635,3 +637,29 @@ fieldset.acc > legend { display: flex; align-items: center; gap: 6px; width: 100
 .acc-extra { margin-left: auto; }
 fieldset.acc.closed { padding-bottom: 0; }
 .acc-body { padding-top: 6px; }
+
+/* --- Resizable side panels --- */
+.panel-resizer { position: absolute; top: 44px; bottom: 0; width: 9px; z-index: 8; cursor: col-resize; touch-action: none; }
+.panel-resizer.left { left: calc(var(--left-w, 320px) - 5px); }
+.panel-resizer.right { right: calc(var(--right-w, 300px) - 5px); }
+.panel-resizer::after { content: ''; position: absolute; top: 0; bottom: 0; left: 4px; width: 1px; background: transparent; transition: background 0.15s; }
+.panel-resizer:hover::after, .panel-resizer.dragging::after, .panel-resizer:focus-visible::after { background: var(--accent); width: 2px; }
+.panel-resizer:focus { outline: none; }
+body.resizing, body.resizing * { cursor: col-resize !important; user-select: none !important; }
+
+/* Panels never scroll sideways: their contents shrink and wrap to the width. */
+.panel.left, .panel.right { min-width: 0; overflow-x: hidden; }
+.panel.left > * { min-width: 0; }
+.fixture-list table { table-layout: fixed; }
+.fixture-list th.toggles, .fixture-list td.toggles { width: 76px; }
+.fixture-list td.toggles { overflow: visible; }
+.fixture-list th:last-child, .fixture-list td.mono { width: 64px; }
+.fixture-list td { overflow: hidden; text-overflow: ellipsis; }
+.fixture-list .inline-edit { display: inline-block; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; vertical-align: bottom; }
+.fixture-list .sub { max-width: none; }
+.list-head, .list-controls { min-width: 0; }
+.list-head h2 { white-space: nowrap; }
+.list-tools { display: flex; flex-wrap: wrap; gap: 4px; justify-content: flex-end; }
+.tabs { display: flex; flex-wrap: wrap; }
+.inspector input, .inspector select { max-width: 100%; min-width: 0; box-sizing: border-box; }
+.presets, .problem-actions, .row-buttons, .arrange-row, .seg.small { flex-wrap: wrap; }

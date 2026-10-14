@@ -14,6 +14,7 @@ import { Welcome } from './ui/Welcome'
 import { FreshStartConfirm, useFirstLaunch, WelcomeBack } from './ui/FreshStart'
 import { ToursDialog, TourOverlay } from './ui/Tour'
 import { Tooltips } from './ui/Tooltips'
+import { PanelResizer, usePanelWidths } from './ui/PanelResizer'
 import { Inspector } from './ui/Inspector'
 import { DmxMap } from './ui/DmxMap'
 import { Faders } from './ui/Faders'
@@ -38,6 +39,7 @@ export function App() {
   const [artNet, setArtNet] = useState<ArtNetStatus | null>(null)
   const fullView = useViewSettings((s) => s.fullView)
   const leftTab = useViewSettings((s) => s.leftTab)
+  const [widths, setWidth, resetWidth] = usePanelWidths()
   const setLeftTab = useViewSettings((s) => s.setLeftTab)
 
   // Art-Net, SoundSwitch, menus and files arrive from the Electron main process.
@@ -101,7 +103,13 @@ export function App() {
   }, [])
 
   return (
-    <div className={`app ${fullView ? 'full' : ''}`}>
+    <div className={`app ${fullView ? 'full' : ''}`} style={{ '--left-w': `${widths.left}px`, '--right-w': `${widths.right}px` } as React.CSSProperties}>
+      {!fullView && (
+        <>
+          <PanelResizer side="left" width={widths.left} onChange={(w) => setWidth('left', w)} onReset={() => resetWidth('left')} />
+          <PanelResizer side="right" width={widths.right} onChange={(w) => setWidth('right', w)} onReset={() => resetWidth('right')} />
+        </>
+      )}
       <NewShow />
       <Welcome />
       <WelcomeBack />

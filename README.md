@@ -170,6 +170,8 @@ With any tool, **hold Space** and drag to orbit, **Space+Shift** drag to pan, **
 
 **Distribute.** In the inspector's Arrange section, **Distribute evenly** spreads the selection as a **Line**, **Arc**, **Circle** or **Grid**, where they are, on the truss, or on the floor at the front or back, with an optional total width. **Auto-place by type** puts fixtures where a new import would: movers on the truss, tubes across the back, bars on the booth, GigBars on stands, floor units at the front. Both are also in the right-click menu.
 
+**Panel widths.** Drag the edge of the left or right panel to make it wider or narrower (double-click the edge for the usual width; with the edge selected, the arrow keys nudge it). Each panel keeps a minimum width so nothing is cut off, the 3D view always keeps room, and the widths are remembered.
+
 **The toolbar** fits any window: as it gets narrower, labels turn into icons and the SoundSwitch and Art-Net pills shorten. Click the SoundSwitch pill for its options: sync automatically or now, follow the open project, find it again, choose another, or make a new show from it.
 
 **DMX Map.** The bottom panel's DMX Map shows each universe the way SoundSwitch does: Universe One, Universe Two, each fixture as a coloured band across its channels (coloured by group), named at its start address, with cross-patched channels in yellow and live levels along the bottom. Hover to see what a channel does; click to select; double-click to find it in 3D. Universes are numbered like SoundSwitch everywhere in the app (Universe 1 is Art-Net universe 0).
