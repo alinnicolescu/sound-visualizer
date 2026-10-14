@@ -100,7 +100,12 @@ check('No risky entitlements', risky.length === 0, risky.length ? risky.join(', 
 const plist = readFileSync(join(appPath, 'Contents', 'Info.plist'), 'utf8')
 check('Asks permission for the local network (Art-Net)', plist.includes('NSLocalNetworkUsageDescription'), 'NSLocalNetworkUsageDescription')
 try {
-  const { getCurrentFuseWire, FuseV1Options, FuseState } = await import('@electron/fuses')
+  const mod = await import('@electron/fuses')
+  // Newer @electron/fuses versions export everything on `default`.
+  const lib = mod.getCurrentFuseWire ? mod : mod.default
+  const { getCurrentFuseWire, FuseV1Options } = lib
+  // FuseState: '0' off, '1' on (char codes 48 and 49).
+  const FuseState = lib.FuseState ?? { DISABLE: 48, ENABLE: 49 }
   const wire = await getCurrentFuseWire(appPath)
   const is = (o, st) => wire[o] === st
   const ok = is(FuseV1Options.RunAsNode, FuseState.DISABLE) && is(FuseV1Options.EnableNodeOptionsEnvironmentVariable, FuseState.DISABLE) && is(FuseV1Options.EnableNodeCliInspectArguments, FuseState.DISABLE) && is(FuseV1Options.OnlyLoadAppFromAsar, FuseState.ENABLE) && is(FuseV1Options.EnableEmbeddedAsarIntegrityValidation, FuseState.ENABLE)
