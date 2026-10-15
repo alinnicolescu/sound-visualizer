@@ -43,7 +43,7 @@ jobs:
           cache: npm
 
       - name: Install
-        run: npm ci --legacy-peer-deps
+        run: run: npm install --legacy-peer-deps
 
       - name: Import the signing certificate (only if it's been set up)
         if: env.HAS_CERT == 'true'
