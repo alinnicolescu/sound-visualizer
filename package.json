@@ -5,7 +5,7 @@
   "description": "A learning project: a 3D visualizer that follows your SoundSwitch rig and show over Art-Net.",
   "private": true,
   "type": "module",
-  "main": "./out/main/index.js",
+  "main": "./out/main/index.cjs",
   "scripts": {
     "setup": "node node_modules/electron/install.js",
     "dev": "electron-vite dev",
